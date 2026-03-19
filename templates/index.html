@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClawSwitch</title>
+  <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
+  <link href="https://cdn.bootcdn.net/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+  <style>
+    [v-cloak] { display: none; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .fade-enter-active, .fade-leave-active { transition: opacity .2s; }
+    .fade-enter-from, .fade-leave-to { opacity: 0; }
+    .provider-card { transition: box-shadow .15s, border-color .15s; }
+    .provider-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 6px; font-size: 13px; }
+    .tag-blue { background: #eff6ff; color: #2563eb; }
+    .tag-red { background: #fef2f2; color: #dc2626; }
+    .tag-green { background: #f0fdf4; color: #16a34a; }
+    .toast {
+      position: fixed; top: 20px; right: 20px; z-index: 9999;
+      padding: 12px 24px; border-radius: 8px; color: #fff; font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15); transition: all .3s;
+    }
+    .toast-success { background: #16a34a; }
+    .toast-error { background: #dc2626; }
+    .modal-mask {
+      position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1000;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal-body {
+      background: #fff; border-radius: 12px; padding: 28px;
+      width: 90%; max-width: 480px; box-shadow: 0 8px 32px rgba(0,0,0,.15);
+    }
+    .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; }
+    .checkbox-item:hover { background: #f8fafc; border-radius: 6px; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all .15s; border: none; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-outline { background: #fff; color: #374151; border: 1px solid #d1d5db; }
+    .btn-outline:hover { background: #f9fafb; border-color: #9ca3af; }
+    .btn-danger { background: #fff; color: #dc2626; border: 1px solid #fecaca; }
+    .btn-danger:hover { background: #fef2f2; }
+    .btn-sm { padding: 5px 12px; font-size: 13px; }
+    .input {
+      width: 100%; padding: 10px 14px; border: 1px solid #d1d5db; border-radius: 8px;
+      font-size: 14px; outline: none; transition: border-color .15s;
+    }
+    .input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    select.input { appearance: auto; }
+    .sidebar-section { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+    .quick-btn { padding: 4px 12px; border: 1px solid #2563eb; color: #2563eb; border-radius: 6px; font-size: 13px; cursor: pointer; background: #fff; transition: all .15s; }
+    .quick-btn:hover { background: #2563eb; color: #fff; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .fallback-tag {
+      display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px;
+      background: #fff7ed; color: #c2410c; border-radius: 6px; font-size: 13px; font-weight: 500;
+    }
+    .fallback-tag button { background: none; border: none; color: #c2410c; cursor: pointer; font-size: 16px; line-height: 1; padding: 0 2px; }
+    .model-grid { display: grid; grid-template-columns: 1fr; gap: 4px; max-height: 320px; overflow-y: auto; padding: 4px; }
+    .test-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .test-dot-idle { background: #d1d5db; }
+    .test-dot-ok { background: #16a34a; }
+    .test-dot-fail { background: #dc2626; }
+    .test-dot-loading { background: #f59e0b; animation: pulse-dot 1s ease-in-out infinite; }
+    @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+    .test-btn { padding: 2px 8px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 11px; cursor: pointer; background: #fff; color: #6b7280; transition: all .15s; display: inline-flex; align-items: center; gap: 4px; }
+    .test-btn:hover { border-color: #9ca3af; color: #374151; }
+    .test-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .latency-text { font-size: 11px; color: #6b7280; }
+    .agent-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; transition: border-color .15s; flex-wrap: wrap; }
+    .agent-row:hover { border-color: #93c5fd; }
+    .agent-avatar { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; }
+    .agent-saving { opacity: .6; pointer-events: none; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div id="app" v-cloak>
+
+  <!-- Toast -->
+  <transition name="fade">
+    <div v-if="toast.show" :class="['toast', toast.type === 'error' ? 'toast-error' : 'toast-success']">
+      {[ toast.msg ]}
+    </div>
+  </transition>
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+    <div class="flex items-center gap-3">
+      <svg class="w-7 h-7 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <span class="text-lg font-bold text-gray-800">OpenClawSwitch</span>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="tag tag-blue text-xs">{[ configPath ]}</span>
+      <button class="btn btn-outline btn-sm" @click="showPathModal = true">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        配置路径
+      </button>
+      <button class="btn btn-primary btn-sm" @click="applyConfig" :disabled="applying">
+        <span v-if="applying" class="spinner"></span>
+        <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        应用配置
+      </button>
+    </div>
+  </header>
+
+  <!-- Main layout -->
+  <div class="flex flex-col lg:flex-row gap-4 p-4 max-w-screen-xl mx-auto">
+
+    <!-- Sidebar -->
+    <aside class="w-full lg:w-72 flex-shrink-0 space-y-4">
+      <div class="sidebar-section">
+        <h3 class="text-sm font-semibold text-gray-500 mb-4 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+          模型配置
+        </h3>
+
+        <!-- Primary model -->
+        <label class="block text-xs text-gray-500 mb-1">主要模型</label>
+        <select class="input mb-2" v-model="primary">
+          <option value="">-- 选择主要模型 --</option>
+          <option v-for="m in selectedModels" :key="m.key" :value="m.key">{[ m.key ]}</option>
+        </select>
+        <div v-if="primary" class="flex items-center gap-2 mb-4">
+          <button class="test-btn" @click="testModel(primary)" :disabled="testStatus[primary] === 'loading'">
+            <span :class="['test-dot', testDotClass(primary)]"></span>
+            {[ testStatus[primary] === 'loading' ? '测试中...' : '测试连通' ]}
+          </button>
+          <span v-if="testLatency[primary]" class="latency-text">{[ testLatency[primary] ]}ms</span>
+          <span v-if="testError[primary]" class="text-xs text-red-500 truncate" :title="testError[primary]">{[ testError[primary] ]}</span>
+        </div>
+
+        <!-- Fallback models -->
+        <div class="flex items-center justify-between mb-1">
+          <label class="block text-xs text-gray-500">备用模型</label>
+          <button v-if="fallbacks.length" class="test-btn" @click="testAllFallbacks" :disabled="testingAll">
+            <span v-if="testingAll" class="test-dot test-dot-loading"></span>
+            {[ testingAll ? '测试中...' : '全部测试' ]}
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-2 mb-2" v-if="fallbacks.length">
+          <span class="fallback-tag" v-for="(fb, i) in fallbacks" :key="fb">
+            <span :class="['test-dot', testDotClass(fb)]" :title="testError[fb] || ''"></span>
+            {[ fb ]}
+            <span v-if="testLatency[fb]" class="latency-text">{[ testLatency[fb] ]}ms</span>
+            <button class="test-btn" style="padding:1px 5px;border:none;" @click.stop="testModel(fb)" :disabled="testStatus[fb] === 'loading'" title="测试">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </button>
+            <button @click="removeFallback(i)" title="移除">&times;</button>
+          </span>
+        </div>
+        <div class="text-xs text-gray-400 mb-2" v-else>尚未添加备用模型</div>
+        <select class="input" @change="addFallback($event)" v-model="fallbackSelect">
+          <option value="">+ 添加备用</option>
+          <option v-for="m in availableFallbacks" :key="m.key" :value="m.key">{[ m.key ]}</option>
+        </select>
+      </div>
+
+      <!-- Stats -->
+      <div class="sidebar-section">
+        <h3 class="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          统计
+        </h3>
+        <div class="space-y-2 text-sm text-gray-600">
+          <div class="flex justify-between"><span>服务商</span><span class="font-semibold text-gray-800">{[ providers.length ]}</span></div>
+          <div class="flex justify-between"><span>已选模型</span><span class="font-semibold text-blue-600">{[ selectedModels.length ]}</span></div>
+          <div class="flex justify-between"><span>总模型数</span><span class="font-semibold text-gray-800">{[ allModels.length ]}</span></div>
+        </div>
+      </div>
+
+      <!-- Multi-Agent config -->
+      <div v-if="agents.length" class="sidebar-section">
+        <h3 class="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+          多 Agent 配置
+          <span class="text-gray-400 font-normal">{[ agents.length ]}</span>
+        </h3>
+        <div class="space-y-2">
+          <div v-for="ag in agents" :key="ag.id" :class="['agent-row', agentSaving[ag.id] ? 'agent-saving' : '']">
+            <div :class="['agent-avatar', ag.is_main ? 'bg-blue-500' : 'bg-gray-400']" :title="ag.id">
+              {[ ag.name.charAt(0) ]}
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-1">
+                <span class="text-sm font-semibold text-gray-800 truncate">{[ ag.name ]}</span>
+                <span v-if="ag.is_main" class="tag tag-blue" style="font-size:10px;padding:0 6px;">主</span>
+              </div>
+              <div class="text-xs text-gray-400">{[ ag.id ]}</div>
+            </div>
+            <div class="flex-shrink-0" style="width:100%;max-width:180px;" v-if="!ag.is_main">
+              <select class="input" style="padding:6px 10px;font-size:12px;" :value="ag.model" @change="updateAgentModel(ag, $event.target.value)">
+                <option value="">-- 跟随 primary --</option>
+                <option v-for="m in selectedModels" :key="m.key" :value="m.key">{[ m.key ]}</option>
+                <option v-if="ag.model && !selectedModels.find(m => m.key === ag.model)" :value="ag.model">{[ ag.model ]} (当前)</option>
+              </select>
+            </div>
+            <div v-else class="flex-shrink-0 text-xs text-blue-600 font-medium" style="max-width:180px;">
+              跟随 primary
+            </div>
+            <div class="flex items-center gap-1" style="width:100%;">
+              <span :class="['test-dot', testDotClass(agentModelKey(ag))]"></span>
+              <span v-if="testLatency[agentModelKey(ag)]" class="latency-text">{[ testLatency[agentModelKey(ag)] ]}ms</span>
+              <span v-if="testError[agentModelKey(ag)]" class="text-xs text-red-500 truncate" style="max-width:120px;" :title="testError[agentModelKey(ag)]">{[ testError[agentModelKey(ag)] ]}</span>
+              <button v-if="agentModelKey(ag)" class="test-btn" @click="testModel(agentModelKey(ag))" :disabled="testStatus[agentModelKey(ag)] === 'loading'">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                {[ testStatus[agentModelKey(ag)] === 'loading' ? '...' : '测试' ]}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main area -->
+    <main class="flex-1 min-w-0">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-semibold text-gray-700 flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          服务商 <span class="text-gray-400 font-normal">{[ providers.length ]}</span>
+        </h2>
+        <button class="btn btn-primary btn-sm" @click="openAddProvider">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          添加
+        </button>
+      </div>
+
+      <!-- Provider cards -->
+      <div class="space-y-3">
+        <div v-for="p in providers" :key="p.id" class="provider-card bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <!-- Card header -->
+          <div class="px-5 py-4">
+            <div class="flex items-start justify-between">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <h3 class="text-base font-bold text-gray-800">{[ p.name ]}</h3>
+                </div>
+                <div class="text-sm text-gray-500 truncate mb-1">{[ p.base_url ]}</div>
+                <div class="flex items-center gap-3 text-xs">
+                  <span class="flex items-center gap-1">
+                    Key:
+                    <span v-if="p.api_key" class="text-green-600 font-bold">&#10003;</span>
+                    <span v-else class="text-gray-400">-</span>
+                  </span>
+                  <span>API: {[ p.api_type ]}</span>
+                </div>
+              </div>
+              <div class="flex items-center gap-1 ml-2 flex-shrink-0">
+                <button class="btn btn-outline btn-sm" @click="editProvider(p)" title="编辑">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                </button>
+                <button class="p-2 text-red-400 hover:text-red-600 transition" @click="deleteProvider(p)" title="删除">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Expand models toggle -->
+            <div class="mt-3 flex items-center gap-2">
+              <button class="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 transition"
+                      @click="toggleExpand(p.id)">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v8m-4-4h8"/></svg>
+                {[ p.model_count || 0 ]} 个模型
+                <svg :class="['w-3 h-3 transition-transform', expanded[p.id] ? 'transform rotate-180' : '']" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+              </button>
+              <button class="btn btn-outline btn-sm text-xs" @click="fetchModels(p)" :disabled="fetchingId === p.id">
+                <span v-if="fetchingId === p.id" class="spinner" style="border-color:#2563eb;border-top-color:transparent;width:12px;height:12px;border-width:1.5px;"></span>
+                <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                查询模型
+              </button>
+              <button v-if="getProviderModels(p.id).length" class="btn btn-outline btn-sm text-xs" @click="selectAllProviderModels(p.id)">
+                全选
+              </button>
+              <button v-if="getProviderModels(p.id).length" class="btn btn-outline btn-sm text-xs" @click="deselectAllProviderModels(p.id)">
+                取消全选
+              </button>
+              <button v-if="getProviderModels(p.id).length" class="btn btn-outline btn-sm text-xs" @click="batchTestProvider(p)" :disabled="batchTesting[p.id]">
+                <span v-if="batchTesting[p.id]" class="test-dot test-dot-loading"></span>
+                <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                {[ batchTesting[p.id] ? `测试中 ${batchProgress[p.id] || ''}` : '批量测试' ]}
+              </button>
+            </div>
+          </div>
+
+          <!-- Expanded models list -->
+          <div v-if="expanded[p.id] && getSortedProviderModels(p.id).length" class="border-t border-gray-100 px-5 py-3 bg-gray-50">
+            <div class="model-grid">
+              <div v-for="m in getSortedProviderModels(p.id)" :key="m.id" class="checkbox-item px-2">
+                <input type="checkbox" :checked="m.selected" @change="toggleModel(m)"
+                       class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" style="cursor:pointer;">
+                <span :class="['text-sm flex-1', m.selected ? 'text-gray-800 font-medium' : 'text-gray-500']">{[ m.model_id ]}</span>
+                <span :class="['test-dot', testDotClass(mKey(m))]" :title="testError[mKey(m)] || ''"></span>
+                <span v-if="testLatency[mKey(m)]" class="latency-text">{[ testLatency[mKey(m)] ]}ms</span>
+                <button class="test-btn" @click.prevent="testModel(mKey(m))" :disabled="testStatus[mKey(m)] === 'loading'" title="测试可用性">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else-if="expanded[p.id] && !getSortedProviderModels(p.id).length" class="border-t border-gray-100 px-5 py-4 bg-gray-50 text-sm text-gray-400 text-center">
+            暂无模型，请点击「查询模型」拉取
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div v-if="!providers.length" class="text-center py-16 text-gray-400">
+          <svg class="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+          <p class="text-base mb-2">尚未添加服务商</p>
+          <p class="text-sm">点击右上角「添加」按钮开始配置</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ======================== Modals ======================== -->
+
+  <!-- Add/Edit Provider Modal -->
+  <div v-if="showProviderModal" class="modal-mask" @click.self="showProviderModal = false">
+    <div class="modal-body">
+      <h3 class="text-lg font-bold text-gray-800 mb-5">{[ providerForm.id ? '编辑服务商' : '添加服务商' ]}</h3>
+
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">服务商名称 <span class="text-red-500">*</span></label>
+          <input class="input" v-model="providerForm.name" placeholder="例如: openai" :disabled="!!providerForm.id">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Base URL <span class="text-red-500">*</span></label>
+          <input class="input" v-model="providerForm.base_url" placeholder="https://api.openai.com/v1">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">API Key <span class="text-gray-400 font-normal">(可选)</span></label>
+          <input class="input" v-model="providerForm.api_key" placeholder="sk-..." type="password">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">API 类型</label>
+          <select class="input" v-model="providerForm.api_type">
+            <option value="openai-completions">openai-completions</option>
+            <option value="anthropic-messages">anthropic-messages</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Quick select presets -->
+      <div v-if="!providerForm.id" class="mt-4">
+        <span class="text-xs text-gray-500 mr-2">快速选择:</span>
+        <button class="quick-btn mr-2" @click="applyPreset('deepseek')">DeepSeek</button>
+        <button class="quick-btn mr-2" @click="applyPreset('nvidia')">英伟达</button>
+        <button class="quick-btn" @click="applyPreset('siliconflow')">硅基流动</button>
+      </div>
+
+      <div class="flex justify-end gap-3 mt-6">
+        <button class="btn btn-outline" @click="showProviderModal = false">取消</button>
+        <button class="btn btn-primary" @click="saveProvider" :disabled="savingProvider">
+          <span v-if="savingProvider" class="spinner"></span>
+          {[ providerForm.id ? '保存' : '+ 添加' ]}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config Path Modal -->
+  <div v-if="showPathModal" class="modal-mask" @click.self="showPathModal = false">
+    <div class="modal-body">
+      <h3 class="text-lg font-bold text-gray-800 mb-4">配置文件路径</h3>
+      <input class="input" v-model="newConfigPath" placeholder="openclaw.json 文件路径">
+      <div class="flex justify-end gap-3 mt-5">
+        <button class="btn btn-outline" @click="showPathModal = false">取消</button>
+        <button class="btn btn-primary" @click="saveConfigPath">确定</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const { createApp, ref, computed, onMounted, reactive } = Vue;
+
+createApp({
+  delimiters: ['{[', ']}'],
+  setup() {
+    const providers = ref([]);
+    const allModels = ref([]);
+    const primary = ref('');
+    const fallbacks = ref([]);
+    const fallbackSelect = ref('');
+    const configPath = ref('');
+    const expanded = reactive({});
+    const fetchingId = ref(null);
+    const applying = ref(false);
+    const testingAll = ref(false);
+
+    // Model test state
+    const testStatus = reactive({});
+    const testLatency = reactive({});
+    const testError = reactive({});
+
+    // Batch test state
+    const batchTesting = reactive({});
+    const batchProgress = reactive({});
+
+    // Agents state
+    const agents = ref([]);
+    const agentSaving = reactive({});
+
+    // Modal state
+    const showProviderModal = ref(false);
+    const showPathModal = ref(false);
+    const savingProvider = ref(false);
+    const providerForm = reactive({ id: null, name: '', base_url: '', api_key: '', api_type: 'openai-completions' });
+    const newConfigPath = ref('');
+
+    // Toast
+    const toast = reactive({ show: false, msg: '', type: 'success' });
+    let toastTimer = null;
+    function showToast(msg, type = 'success') {
+      toast.msg = msg;
+      toast.type = type;
+      toast.show = true;
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.show = false; }, 3000);
+    }
+
+    // Computed
+    const selectedModels = computed(() =>
+      allModels.value
+        .filter(m => m.selected)
+        .map(m => ({ ...m, key: `${m.provider_name}/${m.model_id}` }))
+    );
+
+    const availableFallbacks = computed(() =>
+      selectedModels.value.filter(m => m.key !== primary.value && !fallbacks.value.includes(m.key))
+    );
+
+    // API helpers
+    async function api(url, opts = {}) {
+      const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      return res.json();
+    }
+
+    // Load data
+    async function loadProviders() {
+      providers.value = await api('/api/providers');
+    }
+    async function loadModels() {
+      allModels.value = await api('/api/models');
+    }
+    async function loadConfigPath() {
+      const d = await api('/api/config/path');
+      configPath.value = d.path || '';
+      newConfigPath.value = d.path || '';
+    }
+    async function loadCurrentConfig() {
+      const d = await api('/api/config');
+      if (d && d.agents && d.agents.defaults && d.agents.defaults.model) {
+        const mc = d.agents.defaults.model;
+        if (mc.primary) primary.value = mc.primary;
+        if (Array.isArray(mc.fallbacks)) fallbacks.value = [...mc.fallbacks];
+      }
+    }
+    async function loadAgents() {
+      agents.value = await api('/api/agents');
+    }
+    async function updateAgentModel(ag, newModel) {
+      agentSaving[ag.id] = true;
+      try {
+        const d = await api(`/api/agents/${ag.id}/model`, { method: 'PUT', body: { model: newModel } });
+        if (d.error) {
+          showToast(d.error, 'error');
+        } else {
+          ag.model = newModel;
+          if (ag.is_main) primary.value = newModel;
+          showToast(`${ag.name} 模型已更新`);
+        }
+      } finally {
+        delete agentSaving[ag.id];
+      }
+    }
+    async function reload() {
+      await Promise.all([loadProviders(), loadModels(), loadConfigPath(), loadAgents()]);
+    }
+
+    // Provider CRUD
+    function openAddProvider() {
+      Object.assign(providerForm, { id: null, name: '', base_url: '', api_key: '', api_type: 'openai-completions' });
+      showProviderModal.value = true;
+    }
+    function editProvider(p) {
+      Object.assign(providerForm, { id: p.id, name: p.name, base_url: p.base_url, api_key: p.api_key, api_type: p.api_type });
+      showProviderModal.value = true;
+    }
+    async function saveProvider() {
+      if (!providerForm.name.trim() || !providerForm.base_url.trim()) {
+        showToast('服务商名称和 Base URL 为必填项', 'error');
+        return;
+      }
+      savingProvider.value = true;
+      try {
+        const body = { name: providerForm.name, base_url: providerForm.base_url, api_key: providerForm.api_key, api_type: providerForm.api_type };
+        let d;
+        if (providerForm.id) {
+          d = await api(`/api/providers/${providerForm.id}`, { method: 'PUT', body });
+        } else {
+          d = await api('/api/providers', { method: 'POST', body });
+        }
+        if (d.error) {
+          showToast(d.error, 'error');
+        } else {
+          showProviderModal.value = false;
+          showToast(providerForm.id ? '服务商已更新' : '服务商已添加');
+          await reload();
+        }
+      } finally {
+        savingProvider.value = false;
+      }
+    }
+    async function deleteProvider(p) {
+      if (!confirm(`确定删除服务商 "${p.name}" 及其所有模型？`)) return;
+      const d = await api(`/api/providers/${p.id}`, { method: 'DELETE' });
+      if (d.ok) {
+        showToast('服务商已删除');
+        await reload();
+      }
+    }
+
+    // Presets
+    const PRESETS = {
+      deepseek: { name: 'deepseek', base_url: 'https://api.deepseek.com', api_type: 'openai-completions' },
+      nvidia: { name: '英伟达nvidia', base_url: 'https://integrate.api.nvidia.com/v1', api_type: 'openai-completions' },
+      siliconflow: { name: 'siliconflow', base_url: 'https://api.siliconflow.cn/v1', api_type: 'openai-completions' },
+    };
+    function applyPreset(key) {
+      const p = PRESETS[key];
+      providerForm.name = p.name;
+      providerForm.base_url = p.base_url;
+      providerForm.api_type = p.api_type;
+    }
+
+    // Fetch models
+    async function fetchModels(p) {
+      fetchingId.value = p.id;
+      try {
+        const d = await api(`/api/providers/${p.id}/fetch`, { method: 'POST' });
+        if (d.error) {
+          showToast(d.error, 'error');
+        } else {
+          showToast(`已获取 ${d.count} 个模型`);
+          expanded[p.id] = true;
+          await reload();
+        }
+      } finally {
+        fetchingId.value = null;
+      }
+    }
+
+    // Model operations
+    function mKey(m) {
+      return `${m.provider_name}/${m.model_id}`;
+    }
+    function agentModelKey(ag) {
+      if (ag.is_main) return primary.value;
+      return ag.model || primary.value;
+    }
+    function getProviderModels(pid) {
+      return allModels.value.filter(m => m.provider_id === pid);
+    }
+    function getSortedProviderModels(pid) {
+      return getProviderModels(pid).slice().sort((a, b) => (b.selected || 0) - (a.selected || 0));
+    }
+    function toggleExpand(pid) {
+      expanded[pid] = !expanded[pid];
+    }
+    async function toggleModel(m) {
+      const d = await api(`/api/models/${m.id}/toggle`, { method: 'PUT' });
+      if (d.ok !== undefined) {
+        m.selected = d.selected ? 1 : 0;
+      }
+    }
+    async function selectAllProviderModels(pid) {
+      const ids = getProviderModels(pid).map(m => m.id);
+      if (!ids.length) return;
+      await api('/api/models/batch-select', { method: 'POST', body: { ids, selected: true } });
+      await loadModels();
+      showToast('已全选该服务商所有模型');
+    }
+    async function deselectAllProviderModels(pid) {
+      const ids = getProviderModels(pid).map(m => m.id);
+      if (!ids.length) return;
+      await api('/api/models/batch-select', { method: 'POST', body: { ids, selected: false } });
+      await loadModels();
+      showToast('已取消全选');
+    }
+
+    // Fallbacks
+    function addFallback(e) {
+      const v = e.target.value;
+      if (v && !fallbacks.value.includes(v)) {
+        fallbacks.value.push(v);
+      }
+      fallbackSelect.value = '';
+    }
+    function removeFallback(i) {
+      fallbacks.value.splice(i, 1);
+    }
+
+    // Model testing
+    function testDotClass(key) {
+      const s = testStatus[key];
+      if (s === 'ok') return 'test-dot-ok';
+      if (s === 'fail') return 'test-dot-fail';
+      if (s === 'loading') return 'test-dot-loading';
+      return 'test-dot-idle';
+    }
+    async function testModel(modelKey) {
+      testStatus[modelKey] = 'loading';
+      delete testLatency[modelKey];
+      delete testError[modelKey];
+      try {
+        const d = await api('/api/models/test', { method: 'POST', body: { model_key: modelKey } });
+        if (d.ok) {
+          testStatus[modelKey] = 'ok';
+          testLatency[modelKey] = d.latency_ms;
+        } else {
+          testStatus[modelKey] = 'fail';
+          testError[modelKey] = d.error || '未知错误';
+          if (d.latency_ms) testLatency[modelKey] = d.latency_ms;
+        }
+      } catch (e) {
+        testStatus[modelKey] = 'fail';
+        testError[modelKey] = '网络错误';
+      }
+    }
+    async function testAllFallbacks() {
+      testingAll.value = true;
+      const tasks = [];
+      if (primary.value) tasks.push(testModel(primary.value));
+      for (const fb of fallbacks.value) {
+        tasks.push(testModel(fb));
+      }
+      await Promise.all(tasks);
+      testingAll.value = false;
+      const total = tasks.length;
+      const ok = [primary.value, ...fallbacks.value].filter(k => testStatus[k] === 'ok').length;
+      showToast(`测试完成: ${ok}/${total} 可用`);
+    }
+
+    // Batch test all models under a provider
+    async function batchTestProvider(p) {
+      const models = getProviderModels(p.id);
+      if (!models.length) return;
+      batchTesting[p.id] = true;
+      batchProgress[p.id] = '';
+
+      const keys = models.map(m => mKey(m));
+      keys.forEach(k => { testStatus[k] = 'loading'; delete testLatency[k]; delete testError[k]; });
+
+      try {
+        const d = await api('/api/models/batch-test', { method: 'POST', body: { model_keys: keys } });
+        if (d.results) {
+          for (const r of d.results) {
+            if (r.ok) {
+              testStatus[r.model_key] = 'ok';
+              testLatency[r.model_key] = r.latency_ms;
+            } else {
+              testStatus[r.model_key] = 'fail';
+              testError[r.model_key] = r.error || '未知错误';
+              if (r.latency_ms) testLatency[r.model_key] = r.latency_ms;
+            }
+          }
+          showToast(`${p.name}: ${d.ok_count}/${d.total} 可用`);
+        }
+      } catch (e) {
+        keys.forEach(k => { testStatus[k] = 'fail'; testError[k] = '网络错误'; });
+        showToast('批量测试请求失败', 'error');
+      } finally {
+        delete batchTesting[p.id];
+        delete batchProgress[p.id];
+      }
+    }
+
+    // Config path
+    async function saveConfigPath() {
+      const d = await api('/api/config/path', { method: 'POST', body: { path: newConfigPath.value } });
+      if (d.ok) {
+        configPath.value = d.path;
+        showPathModal.value = false;
+        showToast('配置路径已更新');
+        await loadCurrentConfig();
+      } else {
+        showToast(d.error || '更新失败', 'error');
+      }
+    }
+
+    // Apply config
+    async function applyConfig() {
+      if (!primary.value) {
+        showToast('请先选择主要模型', 'error');
+        return;
+      }
+      if (!selectedModels.value.length) {
+        showToast('请至少选择一个模型', 'error');
+        return;
+      }
+      applying.value = true;
+      try {
+        const d = await api('/api/config/apply', {
+          method: 'POST',
+          body: { primary: primary.value, fallbacks: fallbacks.value },
+        });
+        if (d.error) {
+          showToast(d.error, 'error');
+        } else {
+          showToast(`配置已应用: ${d.providers_count} 个服务商, ${d.models_count} 个模型`);
+        }
+      } finally {
+        applying.value = false;
+      }
+    }
+
+    onMounted(async () => {
+      await reload();
+      await loadCurrentConfig();
+    });
+
+    return {
+      providers, allModels, primary, fallbacks, fallbackSelect, configPath, expanded,
+      fetchingId, applying, showProviderModal, showPathModal, savingProvider,
+      providerForm, newConfigPath, toast,
+      testStatus, testLatency, testError, testingAll,
+      batchTesting, batchProgress,
+      agents, agentSaving,
+      selectedModels, availableFallbacks,
+      openAddProvider, editProvider, saveProvider, deleteProvider, applyPreset,
+      fetchModels, getProviderModels, getSortedProviderModels, toggleExpand, toggleModel,
+      selectAllProviderModels, deselectAllProviderModels,
+      addFallback, removeFallback, saveConfigPath, applyConfig, showToast,
+      testModel, testAllFallbacks, batchTestProvider, testDotClass, mKey, agentModelKey,
+      updateAgentModel,
+    };
+  },
+}).mount('#app');
+</script>
+</body>
+</html>
