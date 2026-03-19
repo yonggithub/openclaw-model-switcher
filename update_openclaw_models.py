@@ -17,9 +17,9 @@ except ImportError:
     print("错误：需要安装 requests。请运行: pip install requests")
     sys.exit(1)
 
-DEFAULT_CONFIG_PATH = "/mnt/c/Code/openclawfilegenerate/openclaw.json"
+DEFAULT_CONFIG_PATH = "/root/.openclaw/openclaw.json"
 MODELS_URL = "https://cliproxy.tgoo.top:8088/v1/models"
-API_KEY = "6980bfe8-98dc-8320-9370-d873d2445139"
+API_KEY = "pccw-sk-2wpT5ZHtNAVoiXR54"
 
 MODEL_TEMPLATE = {
     "reasoning": False,

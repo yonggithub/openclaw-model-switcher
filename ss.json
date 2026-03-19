@@ -1,7 +1,7 @@
 {
   "meta": {
-    "lastTouchedVersion": "2026.2.3-1",
-    "lastTouchedAt": "2026-02-09T09:20:04.621Z"
+    "lastTouchedVersion": "2026.2.12",
+    "lastTouchedAt": "2026-03-05T22:47:45.473Z"
   },
   "models": {
     "mode": "replace",
@@ -212,14 +212,10 @@
       "model": {
         "primary": "cpa/gemini-2.5-flash",
         "fallbacks": [
-          "cpa/glm-4.6",
           "cpa/qwen3-max",
-          "cpa/Gemini 2.5 Flash"
+          "cpa/glm-4.6",
+          "cpa/kimi-k2"
         ]
-      },
-      "maxConcurrent": 4,
-      "subagents": {
-        "maxConcurrent": 8
       },
       "models": {
         "cpa/Gemini 2.5 Flash": {},
@@ -234,6 +230,10 @@
         "cpa/kimi-k2": {},
         "cpa/kimi-k2-thinking": {},
         "cpa/qwen3-max": {}
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
       }
     }
   },
@@ -258,5 +258,11 @@
       "resetOnExit": false
     }
   },
-  "plugins": {}
+  "plugins": {
+    "entries": {
+      "qwen-portal-auth": {
+        "enabled": false
+      }
+    }
+  }
 }
