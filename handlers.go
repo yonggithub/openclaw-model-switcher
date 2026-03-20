@@ -286,6 +286,50 @@ func handleBatchSelectModels(w http.ResponseWriter, r *http.Request) {
 	jsonResp(w, 200, map[string]any{"ok": true})
 }
 
+func handleAddModel(w http.ResponseWriter, r *http.Request) {
+	pid, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		jsonErr(w, 400, "无效的服务商 ID")
+		return
+	}
+
+	var exists int
+	if err := appDB.QueryRow("SELECT COUNT(1) FROM providers WHERE id = ?", pid).Scan(&exists); err != nil || exists == 0 {
+		jsonErr(w, 404, "服务商不存在")
+		return
+	}
+
+	var body struct {
+		ModelID string `json:"model_id"`
+	}
+	parseBody(r, &body)
+	modelID := strings.TrimSpace(body.ModelID)
+	if modelID == "" {
+		jsonErr(w, 400, "模型 ID 不能为空")
+		return
+	}
+
+	_, err = appDB.Exec(
+		"INSERT INTO models (provider_id, model_id, owned_by, selected) VALUES (?, ?, '', 0) ON CONFLICT(provider_id, model_id) DO NOTHING",
+		pid, modelID,
+	)
+	if err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+	jsonResp(w, 201, map[string]any{"ok": true})
+}
+
+func handleDeleteModel(w http.ResponseWriter, r *http.Request) {
+	mid, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil {
+		jsonErr(w, 400, "无效的模型 ID")
+		return
+	}
+	appDB.Exec("DELETE FROM models WHERE id = ?", mid)
+	jsonResp(w, 200, map[string]any{"ok": true})
+}
+
 // ---------------------------------------------------------------------------
 // 模型测试
 // ---------------------------------------------------------------------------

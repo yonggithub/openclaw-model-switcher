@@ -24,6 +24,8 @@ func main() {
 	mux.HandleFunc("POST /api/providers/{id}/fetch", handleFetchProviderModels)
 
 	mux.HandleFunc("GET /api/models", handleListModels)
+	mux.HandleFunc("POST /api/providers/{id}/models", handleAddModel)
+	mux.HandleFunc("DELETE /api/models/{id}", handleDeleteModel)
 	mux.HandleFunc("PUT /api/models/{id}/toggle", handleToggleModel)
 	mux.HandleFunc("POST /api/models/batch-select", handleBatchSelectModels)
 	mux.HandleFunc("POST /api/models/test", handleTestModel)

@@ -364,8 +364,8 @@
           </div>
 
           <!-- Expanded models list -->
-          <div v-if="expanded[p.id] && getSortedProviderModels(p.id).length" class="border-t border-gray-100 px-5 py-3 bg-gray-50">
-            <div class="model-grid">
+          <div v-if="expanded[p.id]" class="border-t border-gray-100 px-5 py-3 bg-gray-50">
+            <div v-if="getSortedProviderModels(p.id).length" class="model-grid">
               <div v-for="m in getSortedProviderModels(p.id)" :key="m.id" class="checkbox-item px-2">
                 <input type="checkbox" :checked="m.selected" @change="toggleModel(m)"
                        class="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500" style="cursor:pointer;">
@@ -376,11 +376,26 @@
                 <button class="test-btn" @click.prevent="testModel(mKey(m))" :disabled="testStatus[mKey(m)] === 'loading'" :title="t('testAvailability')">
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 </button>
+                <button class="test-btn" style="color:#dc2626;border-color:#fecaca;" @click.prevent="deleteModel(m, p)" :title="t('delete')">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
               </div>
             </div>
-          </div>
-          <div v-else-if="expanded[p.id] && !getSortedProviderModels(p.id).length" class="border-t border-gray-100 px-5 py-4 bg-gray-50 text-sm text-gray-400 text-center">
-            {[ t('noModelsYet') ]}
+            <div v-else class="text-sm text-gray-400 text-center py-2">
+              {[ t('noModelsYet') ]}
+            </div>
+            <!-- 手动添加模型 -->
+            <div class="flex items-center gap-2 mt-2 pt-2 border-t border-gray-200">
+              <input class="input" style="flex:1;padding:6px 10px;font-size:13px;"
+                     v-model="addModelInputs[p.id]"
+                     :placeholder="t('addModelPlaceholder')"
+                     @keyup.enter="addModel(p)">
+              <button class="btn btn-primary btn-sm" style="padding:5px 12px;font-size:12px;" @click="addModel(p)" :disabled="addingModel[p.id]">
+                <span v-if="addingModel[p.id]" class="spinner" style="width:12px;height:12px;border-width:1.5px;"></span>
+                <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                {[ t('addModelBtn') ]}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -533,7 +548,13 @@ const I18N = {
     nModels: '{0} 个模型', fetchModels: '查询模型',
     selectAll: '全选', deselectAll: '取消全选', selectPassed: '选中已通过',
     batchTest: '批量测试', batchTesting: '测试中', testAvailability: '测试可用性',
-    noModelsYet: '暂无模型，请点击「查询模型」拉取',
+    addModelPlaceholder: '输入模型 ID，如 gpt-4o',
+    addModelBtn: '添加',
+    msgModelAdded: '模型已添加',
+    msgModelIdRequired: '请输入模型 ID',
+    msgModelDeleted: '模型已删除',
+    msgConfirmDeleteModel: '确定删除模型 "{0}"？',
+    noModelsYet: '暂无模型，请点击「查询模型」拉取或手动添加',
     noProviders: '尚未添加服务商', noProvidersHint: '点击右上角「添加」按钮开始配置',
     editProvider: '编辑服务商', addProvider: '添加服务商',
     providerName: '服务商名称', optional: '(可选)', apiType: 'API 类型',
@@ -585,7 +606,13 @@ const I18N = {
     nModels: '{0} models', fetchModels: 'Fetch Models',
     selectAll: 'Select All', deselectAll: 'Deselect All', selectPassed: 'Select Passed',
     batchTest: 'Batch Test', batchTesting: 'Testing', testAvailability: 'Test availability',
-    noModelsYet: 'No models yet, click "Fetch Models" to pull',
+    addModelPlaceholder: 'Enter model ID, e.g. gpt-4o',
+    addModelBtn: 'Add',
+    msgModelAdded: 'Model added',
+    msgModelIdRequired: 'Please enter a model ID',
+    msgModelDeleted: 'Model deleted',
+    msgConfirmDeleteModel: 'Delete model "{0}"?',
+    noModelsYet: 'No models yet, click "Fetch Models" or add manually',
     noProviders: 'No providers added', noProvidersHint: 'Click "Add" button to get started',
     editProvider: 'Edit Provider', addProvider: 'Add Provider',
     providerName: 'Provider Name', optional: '(optional)', apiType: 'API Type',
@@ -656,6 +683,10 @@ createApp({
     // Batch test state
     const batchTesting = reactive({});
     const batchProgress = reactive({});
+
+    // Add model state
+    const addModelInputs = reactive({});
+    const addingModel = reactive({});
 
     // Reload config state
     const reloadMode = ref('hybrid');
@@ -936,6 +967,36 @@ createApp({
       await Promise.all(tasks);
       await loadModels();
       showToast(t('msgSelectedOk', okIds.length, failIds.length));
+    }
+
+    // Manual add/delete model
+    async function addModel(p) {
+      const modelId = (addModelInputs[p.id] || '').trim();
+      if (!modelId) {
+        showToast(t('msgModelIdRequired'), 'error');
+        return;
+      }
+      addingModel[p.id] = true;
+      try {
+        const d = await api(`/api/providers/${p.id}/models`, { method: 'POST', body: { model_id: modelId } });
+        if (d.error) {
+          showToast(d.error, 'error');
+        } else {
+          addModelInputs[p.id] = '';
+          showToast(t('msgModelAdded'));
+          await reload();
+        }
+      } finally {
+        addingModel[p.id] = false;
+      }
+    }
+    async function deleteModel(m, p) {
+      if (!confirm(t('msgConfirmDeleteModel', m.model_id))) return;
+      const d = await api(`/api/models/${m.id}`, { method: 'DELETE' });
+      if (d.ok) {
+        showToast(t('msgModelDeleted'));
+        await reload();
+      }
     }
 
     // Fallbacks
@@ -1249,6 +1310,7 @@ createApp({
       openAddProvider, editProvider, saveProvider, deleteProvider, applyPreset,
       fetchModels, getProviderModels, getSortedProviderModels, toggleExpand, toggleModel,
       selectAllProviderModels, deselectAllProviderModels, hasTestedOkModels, selectTestedOkModels,
+      addModelInputs, addingModel, addModel, deleteModel,
       addFallback, removeFallback, saveConfigPath, applyConfig, showToast,
       testModel, testAllFallbacks, batchTestProvider, testDotClass, mKey, agentModelKey,
       updateAgentModel,
