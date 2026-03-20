@@ -1,5 +1,7 @@
 # openclaw-model-switcher
 
+> **Language / 语言:** [English](README.md) | [中文](README.zh-CN.md)
+
 Web-based model switching & management dashboard for [OpenClaw](https://github.com/anthropics/openclaw) Gateway.
 
 Manage multiple LLM providers, select primary/fallback models, test connectivity, preview config diffs, and hot-apply changes to `openclaw.json` — all from a single page.
@@ -98,9 +100,9 @@ After starting the container, go to the dashboard and set the config path to `/r
 
 #### Host Process Monitoring
 
-The container is configured with `pid: "host"` and `cap_add: SYS_PTRACE` to allow the application to monitor and restart the OpenClaw Gateway process running on the host. This enables the "Gateway Status" and "Restart Gateway" features in the dashboard.
+The container uses `pid: "host"` and `privileged: true` so the app can monitor host processes, run `nsenter` to start the Gateway on the host filesystem, and use signals for restart. This powers **Gateway Status** and **Restart Gateway** in the dashboard.
 
-> **Security Note**: `pid: host` + `SYS_PTRACE` grants the container elevated privileges. Only use this in trusted environments.
+> **Security Note**: `pid: host` + `privileged` grants strong host access. Use only in trusted environments.
 
 #### Docker Commands
 
@@ -200,6 +202,8 @@ docker compose up -d --build
 ├── provider.go          # Provider API interaction & model testing
 ├── db.go                # SQLite initialization & schema
 ├── go.mod / go.sum      # Go module dependencies
+├── README.md            # English readme (default on GitHub)
+├── README.zh-CN.md      # Chinese readme
 ├── Dockerfile           # Docker image definition (Alpine-based)
 ├── docker-compose.yml   # Docker Compose orchestration
 ├── img/                 # README screenshots
