@@ -10,6 +10,16 @@ Manage multiple LLM providers, select primary/fallback models, test connectivity
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+## Screenshots
+
+| Overview | Providers & models |
+|:--------:|:------------------:|
+| ![Dashboard overview](img/v1.png) | ![Providers and models](img/v2.png) |
+
+| Configuration & routing | Gateway & tools |
+|:-----------------------:|:---------------:|
+| ![Configuration sidebar](img/v3.png) | ![Gateway and related UI](img/v4.png) |
+
 ## Features
 
 - **Provider Management** — Add, edit, delete LLM providers (OpenAI-compatible / Anthropic). Built-in presets for DeepSeek, NVIDIA, SiliconFlow.
@@ -192,6 +202,7 @@ docker compose up -d --build
 ├── go.mod / go.sum      # Go module dependencies
 ├── Dockerfile           # Docker image definition (Alpine-based)
 ├── docker-compose.yml   # Docker Compose orchestration
+├── img/                 # README screenshots
 ├── templates/
 │   └── index.html       # Single-page frontend (embedded at build)
 └── script/
