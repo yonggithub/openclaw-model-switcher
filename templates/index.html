@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenClawSwitch</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%232563eb'/%3E%3Cstop offset='100%25' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Cpath d='M20 22h24v4H20zm0 8h24v4H20zm0 8h16v4H20z' fill='%23fff' opacity='.9'/%3E%3Ccircle cx='46' cy='42' r='8' fill='%2334d399'/%3E%3Cpath d='M43 42l2 2 4-4' stroke='%23fff' stroke-width='2' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.4.21/vue.global.prod.min.js"></script>
   <link href="https://cdn.bootcdn.net/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
   <style>
@@ -37,6 +38,10 @@
     .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all .15s; border: none; }
     .btn-primary { background: #2563eb; color: #fff; }
     .btn-primary:hover { background: #1d4ed8; }
+    .btn-alert { background: #f59e0b; color: #fff; box-shadow: 0 0 0 0 rgba(245,158,11,.4); animation: pulse-alert 2s ease-in-out infinite; }
+    .btn-alert:hover { background: #d97706; }
+    @keyframes pulse-alert { 0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.4); } 50% { box-shadow: 0 0 0 8px rgba(245,158,11,0); } }
+    .change-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #fff; color: #f59e0b; font-size: 11px; font-weight: 700; line-height: 1; }
     .btn-outline { background: #fff; color: #374151; border: 1px solid #d1d5db; }
     .btn-outline:hover { background: #f9fafb; border-color: #9ca3af; }
     .btn-danger { background: #fff; color: #dc2626; border: 1px solid #fecaca; }
@@ -73,6 +78,28 @@
     .agent-row:hover { border-color: #93c5fd; }
     .agent-avatar { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex-shrink: 0; }
     .agent-saving { opacity: .6; pointer-events: none; }
+    .diff-modal { width: 90%; max-width: 800px; max-height: 85vh; display: flex; flex-direction: column; }
+    .diff-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #e5e7eb; }
+    .diff-file-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: #f3f4f6; border-radius: 6px; font-size: 13px; color: #374151; font-family: monospace; }
+    .diff-stats { display: flex; gap: 8px; font-size: 12px; font-weight: 600; }
+    .diff-stats-add { color: #16a34a; }
+    .diff-stats-del { color: #dc2626; }
+    .diff-body { flex: 1; overflow-y: auto; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 12px; line-height: 20px; }
+    .diff-hunk { color: #6366f1; background: #eef2ff; padding: 4px 16px; font-size: 11px; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb; }
+    .diff-line { display: flex; min-height: 20px; }
+    .diff-ln { width: 48px; text-align: right; padding: 0 8px; color: #9ca3af; user-select: none; flex-shrink: 0; font-size: 11px; line-height: 20px; }
+    .diff-ln-old { border-right: 1px solid #e5e7eb; }
+    .diff-ln-new { border-right: 1px solid #e5e7eb; }
+    .diff-content { flex: 1; padding: 0 12px; white-space: pre-wrap; word-break: break-all; }
+    .diff-line-add { background: #dcfce7; }
+    .diff-line-add .diff-ln { background: #bbf7d0; }
+    .diff-line-add .diff-content::before { content: '+'; color: #16a34a; font-weight: 700; margin-right: 4px; }
+    .diff-line-del { background: #fee2e2; }
+    .diff-line-del .diff-ln { background: #fecaca; }
+    .diff-line-del .diff-content::before { content: '-'; color: #dc2626; font-weight: 700; margin-right: 4px; }
+    .diff-line-ctx { background: #fff; }
+    .diff-line-ctx .diff-content::before { content: ' '; margin-right: 4px; }
+    .diff-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding: 16px 20px; border-top: 1px solid #e5e7eb; }
   </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -92,15 +119,34 @@
       <span class="text-lg font-bold text-gray-800">OpenClawSwitch</span>
     </div>
     <div class="flex items-center gap-2 flex-wrap">
-      <span class="tag tag-blue text-xs">{[ configPath ]}</span>
+      <!-- Gateway 状态 -->
+      <span :class="['tag text-xs', gatewayRunning ? 'tag-green' : 'tag-red']" :title="gatewayRunning ? 'Gateway PID: ' + gatewayPid : 'Gateway 未运行'">
+        <span :class="['test-dot', gatewayRunning ? 'test-dot-ok' : 'test-dot-fail']" style="width:6px;height:6px;"></span>
+        Gateway {[ gatewayRunning ? '运行中' : '未运行' ]}
+      </span>
+      <button class="btn btn-outline btn-sm" @click="restartGateway" :disabled="gatewayRestarting" title="重启 Gateway">
+        <span v-if="gatewayRestarting" class="spinner" style="border-color:#2563eb;border-top-color:transparent;width:12px;height:12px;border-width:1.5px;"></span>
+        <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        重启
+      </button>
+
+      <!-- 配置路径 + 权限状态 -->
+      <span :class="['tag text-xs', configPathStatus === 'ok' ? 'tag-blue' : configPathStatus === 'read_only' ? 'tag-blue' : 'tag-red']"
+            :title="configPathMessage || configPath">
+        {[ configPath ]}
+        <span v-if="configPathStatus === 'not_found'" class="text-red-500 font-bold ml-1" title="文件不存在">!</span>
+        <span v-else-if="configPathStatus === 'no_permission'" class="text-red-500 font-bold ml-1" title="无访问权限">&#128274;</span>
+        <span v-else-if="configPathStatus === 'read_only'" class="text-yellow-600 font-bold ml-1" title="只读">R</span>
+      </span>
       <button class="btn btn-outline btn-sm" @click="showPathModal = true">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
         配置路径
       </button>
-      <button class="btn btn-primary btn-sm" @click="applyConfig" :disabled="applying">
+      <button :class="['btn btn-sm', hasUnsavedChanges ? 'btn-alert' : 'btn-primary']" @click="applyConfig" :disabled="applying || configPathStatus === 'no_permission'">
         <span v-if="applying" class="spinner"></span>
         <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
         应用配置
+        <span v-if="hasUnsavedChanges" class="change-badge" title="有未保存的变更">!</span>
       </button>
     </div>
   </header>
@@ -129,6 +175,7 @@
           </button>
           <span v-if="testLatency[primary]" class="latency-text">{[ testLatency[primary] ]}ms</span>
           <span v-if="testError[primary]" class="text-xs text-red-500 truncate" :title="testError[primary]">{[ testError[primary] ]}</span>
+          <span v-if="testReply[primary] && testStatus[primary] === 'ok'" class="text-xs text-green-600" title="AI 回复">[{[ testReply[primary] ]}]</span>
         </div>
 
         <!-- Fallback models -->
@@ -170,6 +217,35 @@
         </div>
       </div>
 
+      <!-- Hot Reload 配置 -->
+      <div class="sidebar-section">
+        <h3 class="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          重载模式
+        </h3>
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">模式</label>
+            <select class="input" v-model="reloadMode">
+              <option value="hybrid">hybrid（默认 - 安全更改热应用，关键更改自动重启）</option>
+              <option value="hot">hot（仅热应用安全更改，关键更改记录警告）</option>
+              <option value="restart">restart（任何更改都重启 Gateway）</option>
+              <option value="off">off（禁用文件监视，手动重启生效）</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">防抖延迟 (ms)</label>
+            <input class="input" type="number" v-model.number="reloadDebounceMs" min="0" step="50" placeholder="300">
+          </div>
+          <div class="text-xs text-gray-400 leading-relaxed">
+            <span v-if="reloadMode === 'hybrid'">安全更改立即热应用，关键更改自动重启 Gateway。</span>
+            <span v-else-if="reloadMode === 'hot'">仅热应用安全更改。需要重启时记录警告，由你自行处理。</span>
+            <span v-else-if="reloadMode === 'restart'">任何配置更改都会重启 Gateway，无论是否安全。</span>
+            <span v-else-if="reloadMode === 'off'">禁用文件监视。更改在下一次手动重启时生效。</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Multi-Agent config -->
       <div v-if="agents.length" class="sidebar-section">
         <h3 class="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
@@ -178,7 +254,7 @@
           <span class="text-gray-400 font-normal">{[ agents.length ]}</span>
         </h3>
         <div class="space-y-2">
-          <div v-for="ag in agents" :key="ag.id" :class="['agent-row', agentSaving[ag.id] ? 'agent-saving' : '']">
+          <div v-for="ag in agents" :key="ag.id" class="agent-row">
             <div :class="['agent-avatar', ag.is_main ? 'bg-blue-500' : 'bg-gray-400']" :title="ag.id">
               {[ ag.name.charAt(0) ]}
             </div>
@@ -275,6 +351,10 @@
               <button v-if="getProviderModels(p.id).length" class="btn btn-outline btn-sm text-xs" @click="deselectAllProviderModels(p.id)">
                 取消全选
               </button>
+              <button v-if="hasTestedOkModels(p.id)" class="btn btn-outline btn-sm text-xs" style="border-color:#bbf7d0;color:#16a34a;" @click="selectTestedOkModels(p.id)">
+                <span class="test-dot test-dot-ok" style="width:6px;height:6px;"></span>
+                选中已通过
+              </button>
               <button v-if="getProviderModels(p.id).length" class="btn btn-outline btn-sm text-xs" @click="batchTestProvider(p)" :disabled="batchTesting[p.id]">
                 <span v-if="batchTesting[p.id]" class="test-dot test-dot-loading"></span>
                 <svg v-else class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -292,6 +372,7 @@
                 <span :class="['text-sm flex-1', m.selected ? 'text-gray-800 font-medium' : 'text-gray-500']">{[ m.model_id ]}</span>
                 <span :class="['test-dot', testDotClass(mKey(m))]" :title="testError[mKey(m)] || ''"></span>
                 <span v-if="testLatency[mKey(m)]" class="latency-text">{[ testLatency[mKey(m)] ]}ms</span>
+                <span v-if="testReply[mKey(m)] && testStatus[mKey(m)] === 'ok'" class="text-xs text-green-600" style="max-width:60px;" :title="'AI: ' + testReply[mKey(m)]">[OK]</span>
                 <button class="test-btn" @click.prevent="testModel(mKey(m))" :disabled="testStatus[mKey(m)] === 'loading'" title="测试可用性">
                   <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                 </button>
@@ -360,11 +441,60 @@
     </div>
   </div>
 
+  <!-- Confirm Changes Modal -->
+  <div v-if="showDiffModal" class="modal-mask" @click.self="showDiffModal = false">
+    <div class="modal-body diff-modal">
+      <div class="diff-header">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <h3 class="text-lg font-bold text-gray-800" style="margin:0;">确认变更</h3>
+          <span class="diff-file-badge">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            {[ diffFilename ]}
+          </span>
+          <div class="diff-stats">
+            <span class="diff-stats-add">+{[ diffAddCount ]}</span>
+            <span class="diff-stats-del">-{[ diffDelCount ]}</span>
+            <span v-for="i in Math.min(diffAddCount, 5)" :key="'a'+i" style="display:inline-block;width:8px;height:8px;background:#16a34a;border-radius:2px;"></span>
+            <span v-for="i in Math.min(diffDelCount, 5)" :key="'d'+i" style="display:inline-block;width:8px;height:8px;background:#dc2626;border-radius:2px;"></span>
+          </div>
+        </div>
+        <button class="p-1 text-gray-400 hover:text-gray-600" @click="showDiffModal = false" style="background:none;border:none;cursor:pointer;">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="diff-body">
+        <template v-for="(chunk, ci) in diffChunks" :key="ci">
+          <div v-if="chunk.header" class="diff-hunk">{[ chunk.header ]}</div>
+          <div v-for="(line, li) in chunk.lines" :key="ci+'-'+li"
+               :class="['diff-line', line.type === 'add' ? 'diff-line-add' : line.type === 'del' ? 'diff-line-del' : 'diff-line-ctx']">
+            <span class="diff-ln diff-ln-old">{[ line.oldLn || '' ]}</span>
+            <span class="diff-ln diff-ln-new">{[ line.newLn || '' ]}</span>
+            <span class="diff-content">{[ line.text ]}</span>
+          </div>
+        </template>
+        <div v-if="!diffChunks.length" class="text-center text-gray-400 py-8">无变更</div>
+      </div>
+
+      <div class="diff-footer">
+        <button class="btn btn-outline" @click="showDiffModal = false">取消</button>
+        <button class="btn btn-primary" @click="confirmApply" :disabled="applyingConfirm">
+          <span v-if="applyingConfirm" class="spinner"></span>
+          <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          确认保存
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Config Path Modal -->
   <div v-if="showPathModal" class="modal-mask" @click.self="showPathModal = false">
     <div class="modal-body">
       <h3 class="text-lg font-bold text-gray-800 mb-4">配置文件路径</h3>
       <input class="input" v-model="newConfigPath" placeholder="openclaw.json 文件路径">
+      <div v-if="configPathMessage" :class="['mt-2 text-xs px-3 py-2 rounded-lg', configPathStatus === 'ok' ? 'bg-green-50 text-green-700' : configPathStatus === 'read_only' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-600']">
+        {[ configPathMessage ]}
+      </div>
       <div class="flex justify-end gap-3 mt-5">
         <button class="btn btn-outline" @click="showPathModal = false">取消</button>
         <button class="btn btn-primary" @click="saveConfigPath">确定</button>
@@ -386,23 +516,49 @@ createApp({
     const fallbacks = ref([]);
     const fallbackSelect = ref('');
     const configPath = ref('');
+    const configPathStatus = ref('');
+    const configPathMessage = ref('');
     const expanded = reactive({});
     const fetchingId = ref(null);
     const applying = ref(false);
     const testingAll = ref(false);
 
+    // Gateway state
+    const gatewayRunning = ref(false);
+    const gatewayPid = ref(0);
+    const gatewayRestarting = ref(false);
+
     // Model test state
     const testStatus = reactive({});
     const testLatency = reactive({});
     const testError = reactive({});
+    const testReply = reactive({});
 
     // Batch test state
     const batchTesting = reactive({});
     const batchProgress = reactive({});
 
+    // Reload config state
+    const reloadMode = ref('hybrid');
+    const reloadDebounceMs = ref(300);
+
     // Agents state
     const agents = ref([]);
-    const agentSaving = reactive({});
+
+    // Dirty tracking: 存储从服务器加载的原始值
+    const origPrimary = ref('');
+    const origFallbacks = ref([]);
+    const origReloadMode = ref('hybrid');
+    const origReloadDebounceMs = ref(300);
+    const origAgentModels = reactive({});
+
+    // Diff / confirm modal state
+    const showDiffModal = ref(false);
+    const diffChunks = ref([]);
+    const diffFilename = ref('');
+    const diffAddCount = ref(0);
+    const diffDelCount = ref(0);
+    const applyingConfirm = ref(false);
 
     // Modal state
     const showProviderModal = ref(false);
@@ -433,6 +589,20 @@ createApp({
       selectedModels.value.filter(m => m.key !== primary.value && !fallbacks.value.includes(m.key))
     );
 
+    const hasUnsavedChanges = computed(() => {
+      if (primary.value !== origPrimary.value) return true;
+      if (JSON.stringify([...fallbacks.value].sort()) !== JSON.stringify([...origFallbacks.value].sort())) return true;
+      if (reloadMode.value !== origReloadMode.value) return true;
+      if (Number(reloadDebounceMs.value) !== Number(origReloadDebounceMs.value)) return true;
+      for (const ag of agents.value) {
+        if (ag.is_main) continue;
+        const orig = origAgentModels[ag.id] || '';
+        const curr = ag.model || '';
+        if (orig !== curr) return true;
+      }
+      return false;
+    });
+
     // API helpers
     async function api(url, opts = {}) {
       const res = await fetch(url, {
@@ -454,35 +624,65 @@ createApp({
       const d = await api('/api/config/path');
       configPath.value = d.path || '';
       newConfigPath.value = d.path || '';
+      configPathStatus.value = d.status || '';
+      configPathMessage.value = d.message || '';
     }
     async function loadCurrentConfig() {
       const d = await api('/api/config');
       if (d && d.agents && d.agents.defaults && d.agents.defaults.model) {
         const mc = d.agents.defaults.model;
-        if (mc.primary) primary.value = mc.primary;
-        if (Array.isArray(mc.fallbacks)) fallbacks.value = [...mc.fallbacks];
+        if (mc.primary) { primary.value = mc.primary; origPrimary.value = mc.primary; }
+        if (Array.isArray(mc.fallbacks)) { fallbacks.value = [...mc.fallbacks]; origFallbacks.value = [...mc.fallbacks]; }
       }
+    }
+    async function loadGatewayStatus() {
+      try {
+        const d = await api('/api/gateway/status');
+        gatewayRunning.value = !!d.running;
+        gatewayPid.value = d.pid || 0;
+      } catch (e) {
+        gatewayRunning.value = false;
+      }
+    }
+    async function restartGateway() {
+      gatewayRestarting.value = true;
+      try {
+        const d = await api('/api/gateway/restart', { method: 'POST' });
+        if (d.ok) {
+          gatewayRunning.value = !!d.running;
+          gatewayPid.value = d.pid || 0;
+          showToast(d.running ? 'Gateway 已重启' : 'Gateway 启动中...');
+        } else {
+          showToast(d.error || '重启失败', 'error');
+        }
+      } catch (e) {
+        showToast('重启请求失败', 'error');
+      } finally {
+        gatewayRestarting.value = false;
+        setTimeout(loadGatewayStatus, 3000);
+      }
+    }
+    async function loadReloadConfig() {
+      try {
+        const d = await api('/api/config/reload');
+        if (d.mode) { reloadMode.value = d.mode; origReloadMode.value = d.mode; }
+        if (d.debounceMs !== undefined) { reloadDebounceMs.value = d.debounceMs; origReloadDebounceMs.value = d.debounceMs; }
+      } catch (e) {}
     }
     async function loadAgents() {
-      agents.value = await api('/api/agents');
-    }
-    async function updateAgentModel(ag, newModel) {
-      agentSaving[ag.id] = true;
-      try {
-        const d = await api(`/api/agents/${ag.id}/model`, { method: 'PUT', body: { model: newModel } });
-        if (d.error) {
-          showToast(d.error, 'error');
-        } else {
-          ag.model = newModel;
-          if (ag.is_main) primary.value = newModel;
-          showToast(`${ag.name} 模型已更新`);
+      const list = await api('/api/agents');
+      agents.value = list;
+      for (const ag of list) {
+        if (!ag.is_main) {
+          origAgentModels[ag.id] = ag.model || '';
         }
-      } finally {
-        delete agentSaving[ag.id];
       }
     }
+    function updateAgentModel(ag, newModel) {
+      ag.model = newModel;
+    }
     async function reload() {
-      await Promise.all([loadProviders(), loadModels(), loadConfigPath(), loadAgents()]);
+      await Promise.all([loadProviders(), loadModels(), loadConfigPath(), loadAgents(), loadReloadConfig(), loadGatewayStatus()]);
     }
 
     // Provider CRUD
@@ -595,6 +795,21 @@ createApp({
       await loadModels();
       showToast('已取消全选');
     }
+    function hasTestedOkModels(pid) {
+      return getProviderModels(pid).some(m => testStatus[mKey(m)] === 'ok');
+    }
+    async function selectTestedOkModels(pid) {
+      const models = getProviderModels(pid);
+      const okIds = models.filter(m => testStatus[mKey(m)] === 'ok').map(m => m.id);
+      const failIds = models.filter(m => testStatus[mKey(m)] !== 'ok').map(m => m.id);
+      if (!okIds.length) { showToast('没有测试通过的模型', 'error'); return; }
+      const tasks = [];
+      if (okIds.length) tasks.push(api('/api/models/batch-select', { method: 'POST', body: { ids: okIds, selected: true } }));
+      if (failIds.length) tasks.push(api('/api/models/batch-select', { method: 'POST', body: { ids: failIds, selected: false } }));
+      await Promise.all(tasks);
+      await loadModels();
+      showToast(`已选中 ${okIds.length} 个通过测试的模型，取消 ${failIds.length} 个未通过`);
+    }
 
     // Fallbacks
     function addFallback(e) {
@@ -620,8 +835,10 @@ createApp({
       testStatus[modelKey] = 'loading';
       delete testLatency[modelKey];
       delete testError[modelKey];
+      delete testReply[modelKey];
       try {
         const d = await api('/api/models/test', { method: 'POST', body: { model_key: modelKey } });
+        if (d.reply) testReply[modelKey] = d.reply;
         if (d.ok) {
           testStatus[modelKey] = 'ok';
           testLatency[modelKey] = d.latency_ms;
@@ -649,38 +866,60 @@ createApp({
       showToast(`测试完成: ${ok}/${total} 可用`);
     }
 
-    // Batch test all models under a provider
+    // Batch test all models under a provider (async with real-time results)
     async function batchTestProvider(p) {
       const models = getProviderModels(p.id);
       if (!models.length) return;
       batchTesting[p.id] = true;
-      batchProgress[p.id] = '';
 
       const keys = models.map(m => mKey(m));
-      keys.forEach(k => { testStatus[k] = 'loading'; delete testLatency[k]; delete testError[k]; });
+      const total = keys.length;
+      let completed = 0;
+      let okCount = 0;
 
-      try {
-        const d = await api('/api/models/batch-test', { method: 'POST', body: { model_keys: keys } });
-        if (d.results) {
-          for (const r of d.results) {
-            if (r.ok) {
-              testStatus[r.model_key] = 'ok';
-              testLatency[r.model_key] = r.latency_ms;
-            } else {
-              testStatus[r.model_key] = 'fail';
-              testError[r.model_key] = r.error || '未知错误';
-              if (r.latency_ms) testLatency[r.model_key] = r.latency_ms;
-            }
+      keys.forEach(k => { testStatus[k] = 'loading'; delete testLatency[k]; delete testError[k]; delete testReply[k]; });
+      batchProgress[p.id] = `0/${total}`;
+
+      const queue = [...keys];
+      const maxConcurrency = 5;
+
+      async function runOne(key) {
+        try {
+          const d = await api('/api/models/test', { method: 'POST', body: { model_key: key } });
+          if (d.reply) testReply[key] = d.reply;
+          if (d.ok) {
+            testStatus[key] = 'ok';
+            testLatency[key] = d.latency_ms;
+            okCount++;
+          } else {
+            testStatus[key] = 'fail';
+            testError[key] = d.error || '未知错误';
+            if (d.latency_ms) testLatency[key] = d.latency_ms;
           }
-          showToast(`${p.name}: ${d.ok_count}/${d.total} 可用`);
+        } catch (e) {
+          testStatus[key] = 'fail';
+          testError[key] = '网络错误';
         }
-      } catch (e) {
-        keys.forEach(k => { testStatus[k] = 'fail'; testError[k] = '网络错误'; });
-        showToast('批量测试请求失败', 'error');
-      } finally {
-        delete batchTesting[p.id];
-        delete batchProgress[p.id];
+        completed++;
+        batchProgress[p.id] = `${completed}/${total}`;
       }
+
+      async function worker() {
+        while (queue.length > 0) {
+          const key = queue.shift();
+          if (key) await runOne(key);
+        }
+      }
+
+      const workers = [];
+      for (let i = 0; i < Math.min(maxConcurrency, total); i++) {
+        workers.push(worker());
+      }
+      await Promise.all(workers);
+
+      showToast(`${p.name}: ${okCount}/${total} 可用`);
+      delete batchTesting[p.id];
+      delete batchProgress[p.id];
     }
 
     // Config path
@@ -688,15 +927,118 @@ createApp({
       const d = await api('/api/config/path', { method: 'POST', body: { path: newConfigPath.value } });
       if (d.ok) {
         configPath.value = d.path;
+        configPathStatus.value = d.status || '';
+        configPathMessage.value = d.message || '';
         showPathModal.value = false;
-        showToast('配置路径已更新');
+        if (d.status === 'not_found') {
+          showToast('路径已保存，但文件不存在', 'error');
+        } else if (d.status === 'read_only') {
+          showToast('路径已保存，但文件只读', 'error');
+        } else {
+          showToast('配置路径已更新');
+        }
         await loadCurrentConfig();
       } else {
         showToast(d.error || '更新失败', 'error');
       }
     }
 
-    // Apply config
+    // Diff algorithm (Myers-like LCS)
+    function computeDiff(oldLines, newLines) {
+      const n = oldLines.length, m = newLines.length;
+      if (n + m > 20000) {
+        return newLines.map((l, i) => ({ type: 'add', text: l, oldLn: null, newLn: i + 1 }));
+      }
+      const max = n + m;
+      const v = new Int32Array(2 * max + 1);
+      v.fill(-1);
+      const trace = [];
+      v[max + 1] = 0;
+      outer:
+      for (let d = 0; d <= max; d++) {
+        trace.push(v.slice());
+        for (let k = -d; k <= d; k += 2) {
+          let x;
+          if (k === -d || (k !== d && v[max + k - 1] < v[max + k + 1])) {
+            x = v[max + k + 1];
+          } else {
+            x = v[max + k - 1] + 1;
+          }
+          let y = x - k;
+          while (x < n && y < m && oldLines[x] === newLines[y]) { x++; y++; }
+          v[max + k] = x;
+          if (x >= n && y >= m) break outer;
+        }
+      }
+      const edits = [];
+      let x = n, y = m;
+      for (let d = trace.length - 1; d >= 0; d--) {
+        const tv = trace[d];
+        const k = x - y;
+        let prevK;
+        if (k === -d || (k !== d && tv[max + k - 1] < tv[max + k + 1])) {
+          prevK = k + 1;
+        } else {
+          prevK = k - 1;
+        }
+        let prevX = tv[max + prevK];
+        let prevY = prevX - prevK;
+        while (x > prevX && y > prevY) { x--; y--; edits.push({ type: 'ctx', text: oldLines[x], oi: x, ni: y }); }
+        if (d > 0) {
+          if (x === prevX) { y--; edits.push({ type: 'add', text: newLines[y], ni: y }); }
+          else { x--; edits.push({ type: 'del', text: oldLines[x], oi: x }); }
+        }
+      }
+      edits.reverse();
+      return edits;
+    }
+
+    function buildDiffChunks(edits, contextSize = 3) {
+      const chunks = [];
+      let i = 0;
+      while (i < edits.length) {
+        if (edits[i].type === 'ctx') { i++; continue; }
+        let start = Math.max(0, i - contextSize);
+        let end = i;
+        while (end < edits.length) {
+          if (edits[end].type !== 'ctx') { end++; continue; }
+          let ctxRun = 0, j = end;
+          while (j < edits.length && edits[j].type === 'ctx') { ctxRun++; j++; }
+          if (ctxRun <= contextSize * 2 && j < edits.length) { end = j; } else { end += Math.min(ctxRun, contextSize); break; }
+        }
+        end = Math.min(end, edits.length);
+        const chunk = edits.slice(start, end);
+        const oldStart = chunk.find(e => e.oi !== undefined);
+        const newStart = chunk.find(e => e.ni !== undefined);
+        const header = `@@ -${(oldStart ? oldStart.oi + 1 : 1)},${chunk.filter(e => e.type !== 'add').length} +${(newStart ? newStart.ni + 1 : 1)},${chunk.filter(e => e.type !== 'del').length} @@`;
+        let oln = oldStart ? oldStart.oi + 1 : 1;
+        let nln = newStart ? newStart.ni + 1 : 1;
+        const lines = chunk.map(e => {
+          const r = { type: e.type, text: e.text, oldLn: null, newLn: null };
+          if (e.type === 'ctx') { r.oldLn = oln++; r.newLn = nln++; }
+          else if (e.type === 'del') { r.oldLn = oln++; }
+          else if (e.type === 'add') { r.newLn = nln++; }
+          return r;
+        });
+        chunks.push({ header, lines });
+        i = end;
+      }
+      return chunks;
+    }
+
+    function buildApplyBody() {
+      const agentModels = {};
+      for (const ag of agents.value) {
+        if (!ag.is_main) agentModels[ag.id] = ag.model || '';
+      }
+      return {
+        primary: primary.value,
+        fallbacks: fallbacks.value,
+        reload: { mode: reloadMode.value, debounceMs: Number(reloadDebounceMs.value) || 300 },
+        agent_models: agentModels,
+      };
+    }
+
     async function applyConfig() {
       if (!primary.value) {
         showToast('请先选择主要模型', 'error');
@@ -708,36 +1050,75 @@ createApp({
       }
       applying.value = true;
       try {
-        const d = await api('/api/config/apply', {
-          method: 'POST',
-          body: { primary: primary.value, fallbacks: fallbacks.value },
-        });
+        const d = await api('/api/config/preview', { method: 'POST', body: buildApplyBody() });
+        if (d.error) {
+          showToast(d.error, 'error');
+          return;
+        }
+        const oldLines = (d.current || '').split('\n');
+        const newLines = (d.proposed || '').split('\n');
+        const edits = computeDiff(oldLines, newLines);
+        const adds = edits.filter(e => e.type === 'add').length;
+        const dels = edits.filter(e => e.type === 'del').length;
+        diffAddCount.value = adds;
+        diffDelCount.value = dels;
+        diffFilename.value = d.filename || 'openclaw.json';
+        if (adds === 0 && dels === 0) {
+          showToast('配置无变更');
+          return;
+        }
+        diffChunks.value = buildDiffChunks(edits);
+        showDiffModal.value = true;
+      } catch (e) {
+        showToast('预览配置失败', 'error');
+      } finally {
+        applying.value = false;
+      }
+    }
+
+    async function confirmApply() {
+      applyingConfirm.value = true;
+      try {
+        const d = await api('/api/config/apply', { method: 'POST', body: buildApplyBody() });
         if (d.error) {
           showToast(d.error, 'error');
         } else {
+          showDiffModal.value = false;
           showToast(`配置已应用: ${d.providers_count} 个服务商, ${d.models_count} 个模型`);
+          // 同步原始值，重置 dirty 状态
+          origPrimary.value = primary.value;
+          origFallbacks.value = [...fallbacks.value];
+          origReloadMode.value = reloadMode.value;
+          origReloadDebounceMs.value = Number(reloadDebounceMs.value);
+          for (const ag of agents.value) {
+            if (!ag.is_main) origAgentModels[ag.id] = ag.model || '';
+          }
         }
       } finally {
-        applying.value = false;
+        applyingConfirm.value = false;
       }
     }
 
     onMounted(async () => {
       await reload();
       await loadCurrentConfig();
+      setInterval(loadGatewayStatus, 30000);
     });
 
     return {
-      providers, allModels, primary, fallbacks, fallbackSelect, configPath, expanded,
+      providers, allModels, primary, fallbacks, fallbackSelect, configPath, configPathStatus, configPathMessage, expanded,
       fetchingId, applying, showProviderModal, showPathModal, savingProvider,
+      gatewayRunning, gatewayPid, gatewayRestarting, restartGateway,
       providerForm, newConfigPath, toast,
-      testStatus, testLatency, testError, testingAll,
+      showDiffModal, diffChunks, diffFilename, diffAddCount, diffDelCount, applyingConfirm, confirmApply,
+      testStatus, testLatency, testError, testReply, testingAll,
       batchTesting, batchProgress,
-      agents, agentSaving,
+      agents, reloadMode, reloadDebounceMs,
+      hasUnsavedChanges,
       selectedModels, availableFallbacks,
       openAddProvider, editProvider, saveProvider, deleteProvider, applyPreset,
       fetchModels, getProviderModels, getSortedProviderModels, toggleExpand, toggleModel,
-      selectAllProviderModels, deselectAllProviderModels,
+      selectAllProviderModels, deselectAllProviderModels, hasTestedOkModels, selectTestedOkModels,
       addFallback, removeFallback, saveConfigPath, applyConfig, showToast,
       testModel, testAllFallbacks, batchTestProvider, testDotClass, mKey, agentModelKey,
       updateAgentModel,

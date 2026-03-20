@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ---------------------------------------------------------------------------
@@ -320,6 +323,9 @@ func handleTestModel(w http.ResponseWriter, r *http.Request) {
 	} else {
 		resp["error"] = result.Error
 	}
+	if result.Reply != "" {
+		resp["reply"] = result.Reply
+	}
 	jsonResp(w, 200, resp)
 }
 
@@ -501,7 +507,42 @@ func handleUpdateAgentModel(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------------------
 
 func handleGetConfigPath(w http.ResponseWriter, r *http.Request) {
-	jsonResp(w, 200, map[string]any{"path": getConfigPath()})
+	p := getConfigPath()
+	result := map[string]any{"path": p}
+
+	info, err := os.Stat(p)
+	if err != nil {
+		if os.IsNotExist(err) {
+			result["status"] = "not_found"
+			result["message"] = fmt.Sprintf("文件不存在: %s", p)
+		} else if os.IsPermission(err) {
+			result["status"] = "no_permission"
+			result["message"] = fmt.Sprintf("无权限访问: %s", p)
+		} else {
+			result["status"] = "error"
+			result["message"] = err.Error()
+		}
+	} else {
+		if info.IsDir() {
+			result["status"] = "error"
+			result["message"] = fmt.Sprintf("路径是目录而非文件: %s", p)
+		} else {
+			f, errW := os.OpenFile(p, os.O_WRONLY, 0)
+			if errW != nil {
+				if os.IsPermission(errW) {
+					result["status"] = "read_only"
+					result["message"] = fmt.Sprintf("文件只读，无写入权限: %s", p)
+				} else {
+					result["status"] = "ok"
+				}
+			} else {
+				f.Close()
+				result["status"] = "ok"
+			}
+		}
+	}
+
+	jsonResp(w, 200, result)
 }
 
 func handleSetConfigPath(w http.ResponseWriter, r *http.Request) {
@@ -516,12 +557,42 @@ func handleSetConfigPath(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	info, err := os.Stat(p)
+	status := "ok"
+	message := ""
+	if err != nil {
+		if os.IsNotExist(err) {
+			status = "not_found"
+			message = fmt.Sprintf("文件不存在: %s", p)
+		} else if os.IsPermission(err) {
+			status = "no_permission"
+			message = fmt.Sprintf("无权限访问: %s", p)
+			jsonErr(w, 403, message)
+			return
+		}
+	} else if info.IsDir() {
+		jsonErr(w, 400, fmt.Sprintf("路径是目录而非文件: %s", p))
+		return
+	} else {
+		f, errW := os.OpenFile(p, os.O_WRONLY, 0)
+		if errW != nil && os.IsPermission(errW) {
+			status = "read_only"
+			message = fmt.Sprintf("文件只读，无写入权限: %s", p)
+		} else if errW == nil {
+			f.Close()
+		}
+	}
+
 	setConfigPath(p)
 	appDB.Exec(
 		"INSERT INTO settings (key, value) VALUES ('config_path', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
 		p,
 	)
-	jsonResp(w, 200, map[string]any{"ok": true, "path": p})
+	resp := map[string]any{"ok": true, "path": p, "status": status}
+	if message != "" {
+		resp["message"] = message
+	}
+	jsonResp(w, 200, resp)
 }
 
 func handleGetConfig(w http.ResponseWriter, r *http.Request) {
@@ -543,31 +614,220 @@ func handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	jsonResp(w, 200, config)
 }
 
-func handleApplyConfig(w http.ResponseWriter, r *http.Request) {
-	var body struct {
-		Primary   string   `json:"primary"`
-		Fallbacks []string `json:"fallbacks"`
-	}
-	parseBody(r, &body)
-
-	primary := strings.TrimSpace(body.Primary)
-	if primary == "" {
-		jsonErr(w, 400, "必须选择主要模型 (primary)")
+// handleGetReloadConfig 读取 openclaw.json 中的 gateway.reload 配置
+func handleGetReloadConfig(w http.ResponseWriter, r *http.Request) {
+	config, err := readConfigFile()
+	if err != nil {
+		jsonResp(w, 200, map[string]any{"mode": "hybrid", "debounceMs": 300})
 		return
 	}
 
-	fallbacks := body.Fallbacks
-	if fallbacks == nil {
-		fallbacks = []string{}
+	mode := "hybrid"
+	debounceMs := 300
+
+	if gw, ok := config["gateway"].(map[string]any); ok {
+		if rl, ok := gw["reload"].(map[string]any); ok {
+			if m, ok := rl["mode"].(string); ok {
+				mode = m
+			}
+			if d, ok := rl["debounceMs"].(float64); ok {
+				debounceMs = int(d)
+			}
+		}
 	}
 
-	result, err := applyConfigToFile(primary, fallbacks)
+	jsonResp(w, 200, map[string]any{"mode": mode, "debounceMs": debounceMs})
+}
+
+// handleSetReloadConfig 将 gateway.reload 配置写入 openclaw.json
+func handleSetReloadConfig(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Mode       string `json:"mode"`
+		DebounceMs *int   `json:"debounceMs"`
+	}
+	parseBody(r, &body)
+
+	mode := strings.TrimSpace(body.Mode)
+	validModes := map[string]bool{"hybrid": true, "hot": true, "restart": true, "off": true}
+	if !validModes[mode] {
+		jsonErr(w, 400, "无效的 reload 模式，可选: hybrid, hot, restart, off")
+		return
+	}
+
+	debounceMs := 300
+	if body.DebounceMs != nil {
+		debounceMs = *body.DebounceMs
+		if debounceMs < 0 {
+			debounceMs = 0
+		}
+	}
+
+	p := getConfigPath()
+	if _, err := os.Stat(p); os.IsNotExist(err) {
+		jsonErr(w, 404, fmt.Sprintf("配置文件不存在: %s", p))
+		return
+	}
+
+	config, err := readConfigFile()
+	if err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+
+	gw := ensureMap(config, "gateway")
+	rl := ensureMap(gw, "reload")
+	rl["mode"] = mode
+	rl["debounceMs"] = debounceMs
+
+	if _, err := writeConfigFile(config); err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+
+	jsonResp(w, 200, map[string]any{"ok": true, "mode": mode, "debounceMs": debounceMs})
+}
+
+func parseConfigApplyParams(r *http.Request) (configApplyParams, error) {
+	var body configApplyParams
+	parseBody(r, &body)
+
+	body.Primary = strings.TrimSpace(body.Primary)
+	if body.Primary == "" {
+		return body, fmt.Errorf("必须选择主要模型 (primary)")
+	}
+	if body.Fallbacks == nil {
+		body.Fallbacks = []string{}
+	}
+	if body.Reload != nil {
+		validModes := map[string]bool{"hybrid": true, "hot": true, "restart": true, "off": true}
+		if !validModes[body.Reload.Mode] {
+			body.Reload.Mode = "hybrid"
+		}
+		if body.Reload.DebounceMs < 0 {
+			body.Reload.DebounceMs = 0
+		}
+	}
+	return body, nil
+}
+
+func handlePreviewConfig(w http.ResponseWriter, r *http.Request) {
+	params, err := parseConfigApplyParams(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+
+	currentJSON, newJSON, err := previewConfigChanges(params)
+	if err != nil {
+		jsonErr(w, 500, err.Error())
+		return
+	}
+
+	jsonResp(w, 200, map[string]any{
+		"ok":       true,
+		"current":  currentJSON,
+		"proposed": newJSON,
+		"filename": filepath.Base(getConfigPath()),
+	})
+}
+
+func handleApplyConfig(w http.ResponseWriter, r *http.Request) {
+	params, err := parseConfigApplyParams(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+
+	result, err := applyConfigToFile(params)
 	if err != nil {
 		jsonErr(w, 500, err.Error())
 		return
 	}
 	result["ok"] = true
 	jsonResp(w, 200, result)
+}
+
+// ---------------------------------------------------------------------------
+// Gateway 状态管理
+// ---------------------------------------------------------------------------
+
+func handleGatewayStatus(w http.ResponseWriter, r *http.Request) {
+	running, pid := checkGatewayRunning()
+	result := map[string]any{"running": running}
+	if pid > 0 {
+		result["pid"] = pid
+	}
+	jsonResp(w, 200, result)
+}
+
+func handleGatewayRestart(w http.ResponseWriter, r *http.Request) {
+	running, pid := checkGatewayRunning()
+	if running && pid > 0 {
+		proc, err := os.FindProcess(pid)
+		if err == nil {
+			proc.Signal(os.Interrupt)
+			time.Sleep(2 * time.Second)
+			stillRunning, _ := checkGatewayRunning()
+			if stillRunning {
+				proc.Kill()
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+	}
+
+	cmd := findGatewayCommand()
+	if cmd == "" {
+		jsonErr(w, 500, "未找到 OpenClaw Gateway 可执行文件，无法重启。请确认 Gateway 已安装并在 PATH 中。")
+		return
+	}
+
+	execCmd := exec.Command(cmd)
+	execCmd.Dir = filepath.Dir(getConfigPath())
+	execCmd.Stdout = nil
+	execCmd.Stderr = nil
+	if err := execCmd.Start(); err != nil {
+		jsonErr(w, 500, fmt.Sprintf("启动 Gateway 失败: %v", err))
+		return
+	}
+
+	time.Sleep(1 * time.Second)
+	nowRunning, newPid := checkGatewayRunning()
+	jsonResp(w, 200, map[string]any{"ok": true, "running": nowRunning, "pid": newPid})
+}
+
+func checkGatewayRunning() (bool, int) {
+	myPid := os.Getpid()
+	out, err := exec.Command("pgrep", "-f", "openclaw").Output()
+	if err != nil || len(out) == 0 {
+		return false, 0
+	}
+	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+	for _, line := range lines {
+		pid, err := strconv.Atoi(strings.TrimSpace(line))
+		if err != nil || pid == myPid {
+			continue
+		}
+		cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+		if err != nil {
+			continue
+		}
+		cmd := strings.ToLower(string(cmdline))
+		if strings.Contains(cmd, "openclawswitch") {
+			continue
+		}
+		return true, pid
+	}
+	return false, 0
+}
+
+func findGatewayCommand() string {
+	names := []string{"openclaw", "openclaw-gateway"}
+	for _, name := range names {
+		if p, err := exec.LookPath(name); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
 // ---------------------------------------------------------------------------

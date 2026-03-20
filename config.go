@@ -82,15 +82,31 @@ type selectedModelRow struct {
 	APIType      string
 }
 
-func applyConfigToFile(primary string, fallbacks []string) (map[string]any, error) {
+type reloadSettings struct {
+	Mode       string `json:"mode"`
+	DebounceMs int    `json:"debounceMs"`
+}
+
+// configApplyParams 统一的配置应用参数
+type configApplyParams struct {
+	Primary     string            `json:"primary"`
+	Fallbacks   []string          `json:"fallbacks"`
+	Reload      *reloadSettings   `json:"reload"`
+	AgentModels map[string]string `json:"agent_models"`
+}
+
+// buildNewConfig 根据参数构建新的配置对象（不写入文件）
+func buildNewConfig(params configApplyParams) (map[string]any, int, int, error) {
+	primary := params.Primary
+	fallbacks := params.Fallbacks
 	p := getConfigPath()
 	if _, err := os.Stat(p); os.IsNotExist(err) {
-		return nil, fmt.Errorf("配置文件不存在: %s", p)
+		return nil, 0, 0, fmt.Errorf("配置文件不存在: %s", p)
 	}
 
 	config, err := readConfigFile()
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 
 	rows, err := appDB.Query(`
@@ -102,7 +118,7 @@ func applyConfigToFile(primary string, fallbacks []string) (map[string]any, erro
 		ORDER BY p.name, m.model_id
 	`)
 	if err != nil {
-		return nil, err
+		return nil, 0, 0, err
 	}
 	defer rows.Close()
 
@@ -115,7 +131,6 @@ func applyConfigToFile(primary string, fallbacks []string) (map[string]any, erro
 		selectedRows = append(selectedRows, r)
 	}
 
-	// 1) 重建 models.providers
 	modelsSection := ensureMap(config, "models")
 	modelsSection["mode"] = "replace"
 
@@ -136,7 +151,6 @@ func applyConfigToFile(primary string, fallbacks []string) (map[string]any, erro
 	}
 	modelsSection["providers"] = providersMap
 
-	// 2) 重建 agents.defaults.models
 	agentsSection := ensureMap(config, "agents")
 	defaultsSection := ensureMap(agentsSection, "defaults")
 
@@ -147,10 +161,51 @@ func applyConfigToFile(primary string, fallbacks []string) (map[string]any, erro
 	}
 	defaultsSection["models"] = modelsMap
 
-	// 3) 设置 primary / fallbacks
 	modelConfig := ensureMap(defaultsSection, "model")
 	modelConfig["primary"] = primary
 	modelConfig["fallbacks"] = fallbacks
+
+	// 应用 reload 配置
+	if params.Reload != nil {
+		gw := ensureMap(config, "gateway")
+		rl := ensureMap(gw, "reload")
+		rl["mode"] = params.Reload.Mode
+		rl["debounceMs"] = params.Reload.DebounceMs
+	}
+
+	// 应用非 main agent 的模型变更
+	if len(params.AgentModels) > 0 {
+		if agentsSec, ok := config["agents"].(map[string]any); ok {
+			if listVal, ok := agentsSec["list"].([]any); ok {
+				for _, item := range listVal {
+					ag, ok := item.(map[string]any)
+					if !ok {
+						continue
+					}
+					id, _ := ag["id"].(string)
+					if id == "" || id == "main" {
+						continue
+					}
+					if model, exists := params.AgentModels[id]; exists {
+						if model != "" {
+							ag["model"] = model
+						} else {
+							delete(ag, "model")
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return config, len(providersMap), len(selectedRows), nil
+}
+
+func applyConfigToFile(params configApplyParams) (map[string]any, error) {
+	config, provCount, modelCount, err := buildNewConfig(params)
+	if err != nil {
+		return nil, err
+	}
 
 	backupPath, err := writeConfigFile(config)
 	if err != nil {
@@ -158,12 +213,37 @@ func applyConfigToFile(primary string, fallbacks []string) (map[string]any, erro
 	}
 
 	return map[string]any{
-		"providers_count": len(providersMap),
-		"models_count":    len(selectedRows),
-		"primary":         primary,
-		"fallbacks":       fallbacks,
+		"providers_count": provCount,
+		"models_count":    modelCount,
+		"primary":         params.Primary,
+		"fallbacks":       params.Fallbacks,
 		"backup":          backupPath,
 	}, nil
+}
+
+// previewConfigChanges 返回当前配置和预览配置的 JSON 字符串
+func previewConfigChanges(params configApplyParams) (string, string, error) {
+	p := getConfigPath()
+	currentData, err := os.ReadFile(p)
+	if err != nil {
+		return "", "", err
+	}
+
+	var currentObj map[string]any
+	json.Unmarshal(currentData, &currentObj)
+	currentJSON, _ := json.MarshalIndent(currentObj, "", "  ")
+
+	newConfig, _, _, err := buildNewConfig(params)
+	if err != nil {
+		return "", "", err
+	}
+
+	tmpJSON, _ := json.Marshal(newConfig)
+	var normalizedNew map[string]any
+	json.Unmarshal(tmpJSON, &normalizedNew)
+	newJSON, _ := json.MarshalIndent(normalizedNew, "", "  ")
+
+	return string(currentJSON), string(newJSON), nil
 }
 
 // ensureMap 确保 parent[key] 是一个 map[string]any，不存在则创建
