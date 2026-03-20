@@ -781,14 +781,22 @@ func handleGatewayRestart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	execCmd := exec.Command(cmd)
-	execCmd.Dir = filepath.Dir(getConfigPath())
+	var execCmd *exec.Cmd
+	configDir := filepath.Dir(getConfigPath())
+	if isInContainer() {
+		execCmd = exec.Command("nsenter", "-t", "1", "-m", "--",
+			"sh", "-c", fmt.Sprintf("cd %s && nohup %s > /dev/null 2>&1 &", configDir, cmd))
+	} else {
+		execCmd = exec.Command(cmd)
+		execCmd.Dir = configDir
+	}
 	execCmd.Stdout = nil
 	execCmd.Stderr = nil
 	if err := execCmd.Start(); err != nil {
 		jsonErr(w, 500, fmt.Sprintf("启动 Gateway 失败: %v", err))
 		return
 	}
+	execCmd.Wait()
 
 	time.Sleep(1 * time.Second)
 	nowRunning, newPid := checkGatewayRunning()
@@ -820,8 +828,33 @@ func checkGatewayRunning() (bool, int) {
 	return false, 0
 }
 
+func isInContainer() bool {
+	_, err := os.Stat("/.dockerenv")
+	return err == nil
+}
+
 func findGatewayCommand() string {
+	if running, pid := checkGatewayRunning(); running && pid > 0 {
+		if exe, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", pid)); err == nil {
+			return exe
+		}
+	}
+
 	names := []string{"openclaw", "openclaw-gateway"}
+
+	if isInContainer() {
+		for _, name := range names {
+			out, err := exec.Command("nsenter", "-t", "1", "-m", "--",
+				"sh", "-c", "command -v "+name).Output()
+			if err == nil {
+				if p := strings.TrimSpace(string(out)); p != "" {
+					return p
+				}
+			}
+		}
+		return ""
+	}
+
 	for _, name := range names {
 		if p, err := exec.LookPath(name); err == nil {
 			return p

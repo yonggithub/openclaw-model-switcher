@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-RUN apk add --no-cache procps
+RUN apk add --no-cache procps util-linux
 
 COPY build/OpenClawSwitch-linux /usr/local/bin/OpenClawSwitch
 RUN chmod +x /usr/local/bin/OpenClawSwitch
