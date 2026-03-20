@@ -37,7 +37,7 @@ func main() {
 	mux.HandleFunc("GET /api/config", handleGetConfig)
 	mux.HandleFunc("POST /api/config/apply", handleApplyConfig)
 
-	addr := ":6789"
+	addr := ":8356"
 	log.Printf("OpenClawSwitch 启动: http://0.0.0.0%s\n", addr)
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
