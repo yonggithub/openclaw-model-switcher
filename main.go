@@ -35,7 +35,13 @@ func main() {
 	mux.HandleFunc("GET /api/config/path", handleGetConfigPath)
 	mux.HandleFunc("POST /api/config/path", handleSetConfigPath)
 	mux.HandleFunc("GET /api/config", handleGetConfig)
+	mux.HandleFunc("POST /api/config/preview", handlePreviewConfig)
 	mux.HandleFunc("POST /api/config/apply", handleApplyConfig)
+	mux.HandleFunc("GET /api/config/reload", handleGetReloadConfig)
+	mux.HandleFunc("POST /api/config/reload", handleSetReloadConfig)
+
+	mux.HandleFunc("GET /api/gateway/status", handleGatewayStatus)
+	mux.HandleFunc("POST /api/gateway/restart", handleGatewayRestart)
 
 	addr := ":8356"
 	log.Printf("OpenClawSwitch 启动: http://0.0.0.0%s\n", addr)

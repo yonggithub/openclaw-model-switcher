@@ -118,6 +118,28 @@ func fetchModelsFromProvider(baseURL, apiKey string) ([]fetchedModel, error) {
 	return nil, fmt.Errorf("无法获取模型列表: %s", lastErr)
 }
 
+// extractChatReply 从 OpenAI 格式的 chat completion 响应中提取 AI 回复文本
+func extractChatReply(resp map[string]any) string {
+	choices, ok := resp["choices"].([]any)
+	if !ok || len(choices) == 0 {
+		return ""
+	}
+	choice, ok := choices[0].(map[string]any)
+	if !ok {
+		return ""
+	}
+	msg, ok := choice["message"].(map[string]any)
+	if !ok {
+		if delta, ok := choice["delta"].(map[string]any); ok {
+			msg = delta
+		} else {
+			return ""
+		}
+	}
+	content, _ := msg["content"].(string)
+	return strings.TrimSpace(content)
+}
+
 // mapStr 从 map 安全取字符串值
 func mapStr(m map[string]any, key string) string {
 	v, ok := m[key]
@@ -136,6 +158,7 @@ type testResult struct {
 	OK        bool   `json:"ok"`
 	LatencyMs int    `json:"latency_ms"`
 	Error     string `json:"error,omitempty"`
+	Reply     string `json:"reply,omitempty"`
 }
 
 func testSingleModel(provName, baseURL, apiKey, modelID string) testResult {
@@ -145,7 +168,7 @@ func testSingleModel(provName, baseURL, apiKey, modelID string) testResult {
 	payload, _ := json.Marshal(map[string]any{
 		"model":      modelID,
 		"messages":   []map[string]string{{"role": "user", "content": "Return only OK."}},
-		"max_tokens": 1,
+		"max_tokens": 5,
 		"stream":     false,
 	})
 
@@ -193,6 +216,15 @@ func testSingleModel(provName, baseURL, apiKey, modelID string) testResult {
 		resp.Body.Close()
 
 		if resp.StatusCode == 200 {
+			var chatResp map[string]any
+			if err := json.Unmarshal(body, &chatResp); err == nil {
+				reply := extractChatReply(chatResp)
+				if strings.Contains(strings.ToUpper(reply), "OK") {
+					return testResult{ModelKey: modelKey, OK: true, LatencyMs: latency, Reply: reply}
+				}
+				return testResult{ModelKey: modelKey, OK: false, LatencyMs: latency, Reply: reply,
+					Error: fmt.Sprintf("AI 未返回 OK，实际回复: %s", reply)}
+			}
 			return testResult{ModelKey: modelKey, OK: true, LatencyMs: latency}
 		}
 
