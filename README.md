@@ -52,6 +52,9 @@ The dashboard will be available at **http://localhost:8356**.
 # Linux (amd64)
 ./script/build-linux.sh
 
+# Windows (amd64)
+./script/build-windows.sh
+
 # Management
 ./script/start.sh    # Start in background (PID → app.pid)
 ./script/stop.sh     # Stop by PID
