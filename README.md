@@ -7,6 +7,7 @@ Manage multiple LLM providers, select primary/fallback models, test connectivity
 ![Go](https://img.shields.io/badge/Go-1.25-00ADD8?logo=go&logoColor=white)
 ![Vue](https://img.shields.io/badge/Vue-3.4-4FC08D?logo=vuedotjs&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 ## Features
@@ -57,6 +58,56 @@ The dashboard will be available at **http://localhost:8356**.
 
 ```
 
+### Docker Deployment
+
+#### Prerequisites
+
+- Docker & Docker Compose
+- Pre-built Linux binary at `build/OpenClawSwitch-linux` (run `./script/build-linux.sh` first)
+
+#### Quick Start with Docker Compose
+
+```bash
+# 1. Build the Linux binary
+./script/build-linux.sh
+
+# 2. Start the container
+docker compose up -d
+```
+
+The dashboard will be available at **http://localhost:8356**.
+
+#### Volumes
+
+| Container Path | Host Path | Description |
+|---------------|-----------|-------------|
+| `/data` | `./data` | SQLite database (`openclawswitch.db`) and persistent data |
+| `/root/.openclaw` | `/root/.openclaw` | OpenClaw Gateway config directory |
+
+After starting the container, go to the dashboard and set the config path to `/root/.openclaw/openclaw.json` so that the application can read and write the host's OpenClaw configuration file.
+
+#### Host Process Monitoring
+
+The container is configured with `pid: "host"` and `cap_add: SYS_PTRACE` to allow the application to monitor and restart the OpenClaw Gateway process running on the host. This enables the "Gateway Status" and "Restart Gateway" features in the dashboard.
+
+> **Security Note**: `pid: host` + `SYS_PTRACE` grants the container elevated privileges. Only use this in trusted environments.
+
+#### Docker Commands
+
+```bash
+# Start
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+
+# Rebuild after binary update
+docker compose up -d --build
+```
+
 ## Usage
 
 1. **Add a provider** — Click "Add", fill in name / base URL / API key, or use a preset.
@@ -78,7 +129,7 @@ The dashboard will be available at **http://localhost:8356**.
 ```
 ┌─────────────────────────────────────┐
 │           Browser (SPA)             │
-│   Vue 3 + Tailwind CSS (CDN)        │
+│   Vue 3 + Tailwind CSS (CDN)       │
 └──────────────┬──────────────────────┘
                │ HTTP/JSON
 ┌──────────────▼──────────────────────┐
@@ -139,6 +190,8 @@ The dashboard will be available at **http://localhost:8356**.
 ├── provider.go          # Provider API interaction & model testing
 ├── db.go                # SQLite initialization & schema
 ├── go.mod / go.sum      # Go module dependencies
+├── Dockerfile           # Docker image definition (Alpine-based)
+├── docker-compose.yml   # Docker Compose orchestration
 ├── templates/
 │   └── index.html       # Single-page frontend (embedded at build)
 └── script/

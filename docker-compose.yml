@@ -1,0 +1,12 @@
+services:
+  openclawswitch:
+    build: .
+    ports:
+      - "8356:8356"
+    volumes:
+      - ./data:/data
+      - /root/.openclaw:/root/.openclaw
+    pid: "host"
+    cap_add:
+      - SYS_PTRACE
+    restart: always
