@@ -220,6 +220,102 @@
         "api": "anthropic-messages",
         "models": [
           {
+            "id": "Deep Research Pro Preview (Dec-12-2025)",
+            "name": "Deep Research Pro Preview (Dec-12-2025)",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "Gemini 2.0 Flash",
+            "name": "Gemini 2.0 Flash",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "Gemini 2.0 Flash 001",
+            "name": "Gemini 2.0 Flash 001",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "Gemini 2.0 Flash-Lite",
+            "name": "Gemini 2.0 Flash-Lite",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "Gemini 2.0 Flash-Lite 001",
+            "name": "Gemini 2.0 Flash-Lite 001",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
+            "id": "Gemini 2.5 Computer Use Preview 10-2025",
+            "name": "Gemini 2.5 Computer Use Preview 10-2025",
+            "reasoning": false,
+            "input": [
+              "text"
+            ],
+            "cost": {
+              "input": 0,
+              "output": 0,
+              "cacheRead": 0,
+              "cacheWrite": 0
+            },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          },
+          {
             "id": "deepseek-v3.2",
             "name": "deepseek-v3.2",
             "reasoning": false,
@@ -242,9 +338,11 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "cpa/gemini-2.5-flash",
+        "primary": "cpa/qwen3-max",
         "fallbacks": [
-          "cpa/qwen3-max"
+          "cpa/qwen3-max",
+          "cpa/glm-4.6",
+          "cpa/gpt-5.4"
         ]
       },
       "compaction": {
@@ -267,6 +365,12 @@
         "cpa/kimi-k2": {},
         "cpa/kimi-k2-thinking": {},
         "cpa/qwen3-max": {},
+        "ters/Deep Research Pro Preview (Dec-12-2025)": {},
+        "ters/Gemini 2.0 Flash": {},
+        "ters/Gemini 2.0 Flash 001": {},
+        "ters/Gemini 2.0 Flash-Lite": {},
+        "ters/Gemini 2.0 Flash-Lite 001": {},
+        "ters/Gemini 2.5 Computer Use Preview 10-2025": {},
         "ters/deepseek-v3.2": {}
       }
     },
