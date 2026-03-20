@@ -55,10 +55,6 @@ The dashboard will be available at **http://localhost:8356**.
 # Windows (amd64)
 ./script/build-windows.sh
 
-# Management
-./script/start.sh    # Start in background (PID → app.pid)
-./script/stop.sh     # Stop by PID
-./script/status.sh   # Check running status
 ```
 
 ## Usage
@@ -68,6 +64,14 @@ The dashboard will be available at **http://localhost:8356**.
 3. **Select models** — Check the models you want to use. Use "Batch Test" to verify connectivity, then "Select Passed" to keep only working ones.
 4. **Configure routing** — In the sidebar, pick a primary model and optionally add fallbacks.
 5. **Apply config** — Click "Apply Config", review the diff, and confirm. The config is written to `openclaw.json` with an automatic backup.
+
+### Management
+
+```bash
+./script/start.sh    # Start in background (PID → app.pid)
+./script/stop.sh     # Stop by PID
+./script/status.sh   # Check running status
+```
 
 ## Architecture
 
